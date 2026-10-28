@@ -9,6 +9,8 @@ import jakarta.validation.constraints.*;
 import java.util.UUID;
 import org.slf4j.MDC;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
@@ -31,8 +33,9 @@ public class SolicitacaoController {
   /** 201 na criação; 200 com o registro original num retry idêntico; 409 se o conteúdo diverge. */
   @PostMapping
   public ResponseEntity<SolicitacaoResponse> criar(
-      @Valid @RequestBody CriarSolicitacaoRequest request) {
-    return switch (registrar.executar(request.comando(MDC.get("correlationId")))) {
+      @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody CriarSolicitacaoRequest request) {
+    var comando = request.comando(Consumidor.de(jwt), MDC.get("correlationId"));
+    return switch (registrar.executar(comando)) {
       case Criada(var s) ->
           ResponseEntity.created(
                   ServletUriComponentsBuilder.fromCurrentRequest()
@@ -46,21 +49,24 @@ public class SolicitacaoController {
   }
 
   @GetMapping("/{id}")
-  public SolicitacaoResponse consultar(@PathVariable UUID id) {
+  public SolicitacaoResponse consultar(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
     return consultar
-        .porId(id)
+        .porId(id, Consumidor.de(jwt))
         .map(SolicitacaoResponse::de)
         .orElseThrow(() -> new SolicitacaoNaoEncontradaException(id));
   }
 
   @GetMapping
   public PaginaResponse listar(
+      @AuthenticationPrincipal Jwt jwt,
       @RequestParam(required = false) StatusSolicitacao status,
       @RequestParam(required = false) @Size(max = 64) String customerId,
       @RequestParam(defaultValue = "0") @PositiveOrZero int page,
       @RequestParam(defaultValue = "20") @Min(1) @Max(ListarSolicitacoesUseCase.TAMANHO_MAXIMO)
           int size) {
     return PaginaResponse.de(
-        listar.listar(new ListarSolicitacoesUseCase.Filtro(status, customerId, page, size)));
+        listar.listar(
+            new ListarSolicitacoesUseCase.Filtro(
+                Consumidor.de(jwt), status, customerId, page, size)));
   }
 }

@@ -20,8 +20,8 @@ public record CriarSolicitacaoRequest(
   static final String MENSAGEM_FORMATO =
       "deve começar com letra ou dígito e conter apenas letras, dígitos, '.', '_' ou '-'";
 
-  public RegistrarSolicitacaoUseCase.Comando comando(String correlationId) {
+  public RegistrarSolicitacaoUseCase.Comando comando(String consumidor, String correlationId) {
     return new RegistrarSolicitacaoUseCase.Comando(
-        externalId, customerId, productCode, correlationId);
+        consumidor, externalId, customerId, productCode, correlationId);
   }
 }

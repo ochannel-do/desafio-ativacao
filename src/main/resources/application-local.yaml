@@ -2,3 +2,8 @@ management:
   tracing:
     sampling:
       probability: 1.0
+ativacao:
+  seguranca:
+    emissor: http://localhost/local
+    # Só para desenvolvimento: gere tokens com scripts/token-local.sh.
+    chave-hmac: ${AUTH_HMAC_KEY:chave-local-de-desenvolvimento-com-32-bytes}

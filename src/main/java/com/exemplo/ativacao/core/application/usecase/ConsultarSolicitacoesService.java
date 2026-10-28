@@ -15,8 +15,8 @@ public final class ConsultarSolicitacoesService
     this.repository = repository;
   }
 
-  public Optional<SolicitacaoView> porId(UUID id) {
-    return repository.porId(id).map(SolicitacaoView::de);
+  public Optional<SolicitacaoView> porId(UUID id, String consumidor) {
+    return repository.porId(id).filter(s -> s.pertenceA(consumidor)).map(SolicitacaoView::de);
   }
 
   public Pagina listar(Filtro filtro) {

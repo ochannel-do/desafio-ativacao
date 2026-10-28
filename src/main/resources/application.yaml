@@ -18,6 +18,11 @@ logging:
     format:
       console: logstash
 ativacao:
+  seguranca:
+    emissor: ${AUTH_ISSUER:https://auth.exemplo.com}
+    audiencia: ${AUTH_AUDIENCE:ativacao-api}
+    jwk-set-uri: ${AUTH_JWK_SET_URI:}
+    chave-hmac: ${AUTH_HMAC_KEY:}
   provedor:
     base-url: ${PROVIDER_BASE_URL:http://localhost:8089}
     api-key: ${PROVIDER_API_KEY:}
@@ -46,10 +51,15 @@ resilience4j:
         automatic-transition-from-open-to-half-open-enabled: true
         register-health-indicator: false
 management:
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+        http.client.requests: true
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
   endpoint:
     health:
       probes:

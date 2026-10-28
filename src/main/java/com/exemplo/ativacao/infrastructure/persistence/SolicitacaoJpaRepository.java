@@ -20,15 +20,16 @@ public interface SolicitacaoJpaRepository
       value =
           """
           insert into activation_request
-            (id, external_id, customer_id, product_code, correlation_id, status, attempts,
+            (id, client_id, external_id, customer_id, product_code, correlation_id, status, attempts,
              next_attempt_at, created_at, updated_at, version)
-          values (:id, :externalId, :customerId, :productCode, :correlationId, :status, 0,
+          values (:id, :consumidor, :externalId, :customerId, :productCode, :correlationId, :status, 0,
                   :createdAt, :createdAt, :updatedAt, 0)
           on conflict (external_id) do nothing
           """,
       nativeQuery = true)
   int inserirSeAusente(
       @Param("id") UUID id,
+      @Param("consumidor") String consumidor,
       @Param("externalId") String externalId,
       @Param("customerId") String customerId,
       @Param("productCode") String productCode,

@@ -8,9 +8,11 @@ public interface ListarSolicitacoesUseCase {
 
   Pagina listar(Filtro filtro);
 
-  /** Filtros opcionais: {@code null} significa sem filtro. */
-  record Filtro(StatusSolicitacao status, String customerId, int pagina, int tamanho) {
+  /** {@code consumidor} é obrigatório; status e customerId nulos significam sem filtro. */
+  record Filtro(
+      String consumidor, StatusSolicitacao status, String customerId, int pagina, int tamanho) {
     public Filtro {
+      if (consumidor == null) throw new IllegalArgumentException("consumidor obrigatório");
       if (pagina < 0) throw new IllegalArgumentException("pagina negativa");
       if (tamanho < 1 || tamanho > TAMANHO_MAXIMO)
         throw new IllegalArgumentException("tamanho fora de 1.." + TAMANHO_MAXIMO);

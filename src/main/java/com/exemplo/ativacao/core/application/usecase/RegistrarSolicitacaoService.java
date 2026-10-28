@@ -29,6 +29,7 @@ public final class RegistrarSolicitacaoService implements RegistrarSolicitacaoUs
     var nova =
         SolicitacaoAtivacao.nova(
             ids.get(),
+            comando.consumidor(),
             comando.externalId(),
             comando.customerId(),
             comando.productCode(),
@@ -39,7 +40,8 @@ public final class RegistrarSolicitacaoService implements RegistrarSolicitacaoUs
         repository
             .porExternalId(comando.externalId())
             .orElseThrow(() -> new IllegalStateException("externalId em conflito sem registro"));
-    return existente.mesmoConteudo(comando.customerId(), comando.productCode())
+    return existente.mesmoConteudo(
+            comando.consumidor(), comando.customerId(), comando.productCode())
         ? new Repetida(SolicitacaoView.de(existente))
         : new Conflitante(comando.externalId());
   }

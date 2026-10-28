@@ -18,6 +18,7 @@ public final class SolicitacaoAtivacao {
   private static final Pattern IDENTIFICADOR = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]*");
 
   private final UUID id;
+  private final String consumidor;
   private final String externalId;
   private final String customerId;
   private final String productCode;
@@ -32,6 +33,7 @@ public final class SolicitacaoAtivacao {
 
   private SolicitacaoAtivacao(Dados d) {
     this.id = Objects.requireNonNull(d.id(), "id");
+    this.consumidor = Objects.requireNonNull(d.consumidor(), "consumidor");
     this.externalId = identificador("externalId", d.externalId());
     this.customerId = identificador("customerId", d.customerId());
     this.productCode = identificador("productCode", d.productCode());
@@ -49,6 +51,7 @@ public final class SolicitacaoAtivacao {
   /** Estado persistido, usado só para reconstituir o agregado. */
   public record Dados(
       UUID id,
+      String consumidor,
       String externalId,
       String customerId,
       String productCode,
@@ -61,8 +64,10 @@ public final class SolicitacaoAtivacao {
       Instant updatedAt,
       long versao) {}
 
+  /** {@code consumidor} é o sistema cliente autenticado que criou a solicitação. */
   public static SolicitacaoAtivacao nova(
       UUID id,
+      String consumidor,
       String externalId,
       String customerId,
       String productCode,
@@ -71,6 +76,7 @@ public final class SolicitacaoAtivacao {
     return new SolicitacaoAtivacao(
         new Dados(
             id,
+            consumidor,
             externalId,
             customerId,
             productCode,
@@ -116,13 +122,21 @@ public final class SolicitacaoAtivacao {
     ultimoErro = erro;
   }
 
-  public boolean mesmoConteudo(String customerId, String productCode) {
-    return this.customerId.equals(customerId) && this.productCode.equals(productCode);
+  /** Retry legítimo: mesmo consumidor e mesmo conteúdo. */
+  public boolean mesmoConteudo(String consumidor, String customerId, String productCode) {
+    return this.consumidor.equals(consumidor)
+        && this.customerId.equals(customerId)
+        && this.productCode.equals(productCode);
+  }
+
+  public boolean pertenceA(String consumidor) {
+    return this.consumidor.equals(consumidor);
   }
 
   public Dados dados() {
     return new Dados(
         id,
+        consumidor,
         externalId,
         customerId,
         productCode,
@@ -157,6 +171,10 @@ public final class SolicitacaoAtivacao {
 
   public UUID id() {
     return id;
+  }
+
+  public String consumidor() {
+    return consumidor;
   }
 
   public String externalId() {

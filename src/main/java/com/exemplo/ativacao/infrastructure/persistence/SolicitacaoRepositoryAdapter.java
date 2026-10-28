@@ -26,6 +26,7 @@ public class SolicitacaoRepositoryAdapter implements SolicitacaoRepository {
   public boolean inserirSeAusente(SolicitacaoAtivacao s) {
     return repository.inserirSeAusente(
             s.id(),
+            s.consumidor(),
             s.externalId(),
             s.customerId(),
             s.productCode(),
@@ -45,7 +46,8 @@ public class SolicitacaoRepositoryAdapter implements SolicitacaoRepository {
   }
 
   public Fatia listar(Filtro filtro) {
-    Specification<SolicitacaoEntity> spec = (root, query, cb) -> cb.conjunction();
+    Specification<SolicitacaoEntity> spec =
+        (root, query, cb) -> cb.equal(root.get("consumidor"), filtro.consumidor());
     if (filtro.status() != null)
       spec = spec.and((root, query, cb) -> cb.equal(root.get("status"), filtro.status()));
     if (filtro.customerId() != null)
@@ -76,6 +78,7 @@ public class SolicitacaoRepositoryAdapter implements SolicitacaoRepository {
     var d = s.dados();
     var entity = new SolicitacaoEntity();
     entity.id = d.id();
+    entity.consumidor = d.consumidor();
     entity.externalId = d.externalId();
     entity.customerId = d.customerId();
     entity.productCode = d.productCode();
@@ -99,6 +102,7 @@ public class SolicitacaoRepositoryAdapter implements SolicitacaoRepository {
     return SolicitacaoAtivacao.reconstituir(
         new SolicitacaoAtivacao.Dados(
             e.id,
+            e.consumidor,
             e.externalId,
             e.customerId,
             e.productCode,

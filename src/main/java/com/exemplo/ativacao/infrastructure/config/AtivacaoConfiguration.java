@@ -9,6 +9,7 @@ import com.exemplo.ativacao.infrastructure.persistence.*;
 import com.exemplo.ativacao.infrastructure.scheduling.*;
 import com.exemplo.ativacao.infrastructure.transaction.*;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.ObservationRegistry;
 import java.time.Clock;
 import java.time.Duration;
@@ -62,11 +63,13 @@ public class AtivacaoConfiguration {
       ProvedorProperties props,
       RestClient.Builder builder,
       CircuitBreakerRegistry circuitBreakers,
-      Clock clock) {
+      Clock clock,
+      MeterRegistry metricas) {
     return new ProvedorHttpAdapter(
         ProvedorHttpAdapter.cliente(builder, props),
         circuitBreakers.circuitBreaker("provedor"),
-        clock);
+        clock,
+        metricas);
   }
 
   @Bean

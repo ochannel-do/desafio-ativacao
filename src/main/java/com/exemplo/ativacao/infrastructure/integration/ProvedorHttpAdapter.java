@@ -3,6 +3,7 @@ package com.exemplo.ativacao.infrastructure.integration;
 import com.exemplo.ativacao.core.application.port.out.ProvedorAtivacao;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.net.SocketTimeoutException;
 import java.net.http.HttpClient;
 import java.net.http.HttpTimeoutException;
@@ -25,11 +26,14 @@ public final class ProvedorHttpAdapter implements ProvedorAtivacao {
   private final RestClient client;
   private final CircuitBreaker circuitBreaker;
   private final Clock clock;
+  private final MeterRegistry metricas;
 
-  public ProvedorHttpAdapter(RestClient client, CircuitBreaker circuitBreaker, Clock clock) {
+  public ProvedorHttpAdapter(
+      RestClient client, CircuitBreaker circuitBreaker, Clock clock, MeterRegistry metricas) {
     this.client = client;
     this.circuitBreaker = circuitBreaker;
     this.clock = clock;
+    this.metricas = metricas;
   }
 
   /** HTTP/1.1 explícito: evita o upgrade h2c que alguns provedores e proxies tratam mal. */
@@ -68,6 +72,10 @@ public final class ProvedorHttpAdapter implements ProvedorAtivacao {
     } catch (CallNotPermittedException e) {
       resposta = new Indisponivel("Circuito aberto: provedor em recuperação", null);
     }
+    // Taxa de erro do provedor por desfecho; latência vem de http.client.requests.
+    metricas
+        .counter("ativacao.provedor.respostas", "resultado", resposta.getClass().getSimpleName())
+        .increment();
     log.atInfo()
         .addKeyValue("event", "provider_activation_called")
         .addKeyValue("requestId", pedido.chaveIdempotencia())

@@ -10,6 +10,9 @@ import java.util.UUID;
 public class SolicitacaoEntity {
   @Id UUID id;
 
+  @Column(name = "client_id", nullable = false, updatable = false)
+  String consumidor;
+
   @Column(name = "external_id", nullable = false, updatable = false)
   String externalId;
 

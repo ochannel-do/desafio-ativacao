@@ -11,6 +11,7 @@ public record SolicitacaoResponse(
     String productCode,
     String status,
     int attempts,
+    String lastError,
     Instant createdAt,
     Instant updatedAt) {
   public static SolicitacaoResponse de(SolicitacaoView v) {
@@ -21,6 +22,7 @@ public record SolicitacaoResponse(
         v.productCode(),
         v.status().name(),
         v.tentativas(),
+        v.ultimoErro(),
         v.createdAt(),
         v.updatedAt());
   }

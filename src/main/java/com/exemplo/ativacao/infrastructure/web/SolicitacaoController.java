@@ -7,6 +7,7 @@ import com.exemplo.ativacao.infrastructure.web.dto.*;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import java.util.UUID;
+import org.slf4j.MDC;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
@@ -31,7 +32,7 @@ public class SolicitacaoController {
   @PostMapping
   public ResponseEntity<SolicitacaoResponse> criar(
       @Valid @RequestBody CriarSolicitacaoRequest request) {
-    return switch (registrar.executar(request.comando())) {
+    return switch (registrar.executar(request.comando(MDC.get("correlationId")))) {
       case Criada(var s) ->
           ResponseEntity.created(
                   ServletUriComponentsBuilder.fromCurrentRequest()

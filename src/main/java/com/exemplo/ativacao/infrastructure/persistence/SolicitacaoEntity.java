@@ -23,8 +23,17 @@ public class SolicitacaoEntity {
   @Column(nullable = false)
   StatusSolicitacao status;
 
+  @Column(name = "correlation_id", updatable = false)
+  String correlationId;
+
   @Column(name = "attempts", nullable = false)
   int tentativas;
+
+  @Column(name = "next_attempt_at", nullable = false)
+  Instant proximaTentativaEm;
+
+  @Column(name = "last_error")
+  String ultimoErro;
 
   @Column(name = "created_at", nullable = false, updatable = false)
   Instant createdAt;

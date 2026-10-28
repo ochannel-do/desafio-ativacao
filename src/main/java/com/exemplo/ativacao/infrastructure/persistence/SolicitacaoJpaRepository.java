@@ -1,6 +1,7 @@
 package com.exemplo.ativacao.infrastructure.persistence;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.*;
@@ -19,10 +20,10 @@ public interface SolicitacaoJpaRepository
       value =
           """
           insert into activation_request
-            (id, external_id, customer_id, product_code, status, attempts,
-             created_at, updated_at, version)
-          values (:id, :externalId, :customerId, :productCode, :status, 0,
-                  :createdAt, :updatedAt, 0)
+            (id, external_id, customer_id, product_code, correlation_id, status, attempts,
+             next_attempt_at, created_at, updated_at, version)
+          values (:id, :externalId, :customerId, :productCode, :correlationId, :status, 0,
+                  :createdAt, :createdAt, :updatedAt, 0)
           on conflict (external_id) do nothing
           """,
       nativeQuery = true)
@@ -31,9 +32,36 @@ public interface SolicitacaoJpaRepository
       @Param("externalId") String externalId,
       @Param("customerId") String customerId,
       @Param("productCode") String productCode,
+      @Param("correlationId") String correlationId,
       @Param("status") String status,
       @Param("createdAt") Instant createdAt,
       @Param("updatedAt") Instant updatedAt);
 
   Optional<SolicitacaoEntity> findByExternalId(String externalId);
+
+  @Query(
+      value =
+          """
+          select * from activation_request
+          where status = 'PENDING' and next_attempt_at <= :agora
+          order by next_attempt_at
+          limit :limite
+          for update skip locked
+          """,
+      nativeQuery = true)
+  List<SolicitacaoEntity> bloquearPendentes(
+      @Param("agora") Instant agora, @Param("limite") int limite);
+
+  @Query(
+      value =
+          """
+          select * from activation_request
+          where status = 'PROCESSING' and updated_at < :limite
+          order by updated_at
+          limit :quantidade
+          for update skip locked
+          """,
+      nativeQuery = true)
+  List<SolicitacaoEntity> bloquearPresasEmProcessamento(
+      @Param("limite") Instant limite, @Param("quantidade") int quantidade);
 }

@@ -17,6 +17,34 @@ logging:
   structured:
     format:
       console: logstash
+ativacao:
+  provedor:
+    base-url: ${PROVIDER_BASE_URL:http://localhost:8089}
+    api-key: ${PROVIDER_API_KEY:}
+    connect-timeout: ${PROVIDER_CONNECT_TIMEOUT:1s}
+    read-timeout: ${PROVIDER_READ_TIMEOUT:3s}
+  processamento:
+    intervalo: 1s
+    tamanho-lote: 20
+    maximo-tentativas: 5
+    backoff-base: 2s
+    backoff-teto: 5m
+    prazo-processamento: 60s
+    intervalo-reconciliacao: 30s
+resilience4j:
+  circuitbreaker:
+    instances:
+      provedor:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 20
+        minimum-number-of-calls: 10
+        failure-rate-threshold: 50
+        slow-call-duration-threshold: 2s
+        slow-call-rate-threshold: 80
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        register-health-indicator: false
 management:
   endpoints:
     web:

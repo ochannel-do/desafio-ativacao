@@ -3,14 +3,18 @@ package com.exemplo.ativacao.infrastructure.persistence;
 import com.exemplo.ativacao.core.application.port.in.ListarSolicitacoesUseCase.Filtro;
 import com.exemplo.ativacao.core.application.port.out.SolicitacaoRepository;
 import com.exemplo.ativacao.core.domain.model.SolicitacaoAtivacao;
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
-public final class SolicitacaoRepositoryAdapter implements SolicitacaoRepository {
+public class SolicitacaoRepositoryAdapter implements SolicitacaoRepository {
   private static final Sort MAIS_RECENTES =
       Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"));
   private final SolicitacaoJpaRepository repository;
@@ -25,6 +29,7 @@ public final class SolicitacaoRepositoryAdapter implements SolicitacaoRepository
             s.externalId(),
             s.customerId(),
             s.productCode(),
+            s.correlationId(),
             s.status().name(),
             s.createdAt(),
             s.updatedAt())
@@ -52,20 +57,39 @@ public final class SolicitacaoRepositoryAdapter implements SolicitacaoRepository
         page.getTotalElements());
   }
 
-  public void atualizar(SolicitacaoAtivacao s) {
+  // O lock de FOR UPDATE só dura até o commit; sem a transação do chamador ele seria inútil.
+  @Transactional(propagation = Propagation.MANDATORY)
+  public List<SolicitacaoAtivacao> bloquearPendentes(Instant agora, int limite) {
+    return repository.bloquearPendentes(agora, limite).stream()
+        .map(SolicitacaoRepositoryAdapter::dominio)
+        .toList();
+  }
+
+  @Transactional(propagation = Propagation.MANDATORY)
+  public List<SolicitacaoAtivacao> bloquearPresasEmProcessamento(Instant limite, int quantidade) {
+    return repository.bloquearPresasEmProcessamento(limite, quantidade).stream()
+        .map(SolicitacaoRepositoryAdapter::dominio)
+        .toList();
+  }
+
+  public SolicitacaoAtivacao atualizar(SolicitacaoAtivacao s) {
+    var d = s.dados();
     var entity = new SolicitacaoEntity();
-    entity.id = s.id();
-    entity.externalId = s.externalId();
-    entity.customerId = s.customerId();
-    entity.productCode = s.productCode();
-    entity.status = s.status();
-    entity.tentativas = s.tentativas();
-    entity.createdAt = s.createdAt();
-    entity.updatedAt = s.updatedAt();
+    entity.id = d.id();
+    entity.externalId = d.externalId();
+    entity.customerId = d.customerId();
+    entity.productCode = d.productCode();
+    entity.correlationId = d.correlationId();
+    entity.status = d.status();
+    entity.tentativas = d.tentativas();
+    entity.proximaTentativaEm = d.proximaTentativaEm();
+    entity.ultimoErro = d.ultimoErro();
+    entity.createdAt = d.createdAt();
+    entity.updatedAt = d.updatedAt();
     // A versão lida volta no merge; o Hibernate inclui "where version = ?" e falha se mudou.
-    entity.version = s.versao();
+    entity.version = d.versao();
     try {
-      repository.saveAndFlush(entity);
+      return dominio(repository.saveAndFlush(entity));
     } catch (ObjectOptimisticLockingFailureException e) {
       throw new ConflitoDeVersaoException(s.id());
     }
@@ -73,14 +97,18 @@ public final class SolicitacaoRepositoryAdapter implements SolicitacaoRepository
 
   static SolicitacaoAtivacao dominio(SolicitacaoEntity e) {
     return SolicitacaoAtivacao.reconstituir(
-        e.id,
-        e.externalId,
-        e.customerId,
-        e.productCode,
-        e.status,
-        e.tentativas,
-        e.createdAt,
-        e.updatedAt,
-        e.version);
+        new SolicitacaoAtivacao.Dados(
+            e.id,
+            e.externalId,
+            e.customerId,
+            e.productCode,
+            e.correlationId,
+            e.status,
+            e.tentativas,
+            e.proximaTentativaEm,
+            e.ultimoErro,
+            e.createdAt,
+            e.updatedAt,
+            e.version));
   }
 }

@@ -9,3 +9,4 @@
 - Nenhuma chamada HTTP dentro de transação de banco aberta.
 - Integração usa PostgreSQL real via Testcontainers e Flyway, nunca H2. Provedor externo em testes via WireMock.
 - Crie apenas abstrações necessárias. Resiliência (circuit breaker, retry) só no adaptador do provedor externo.
+- Toda leitura filtra pelo consumidor do token (client_id). Nova rota precisa de regra de escopo em `SegurancaConfiguration`.

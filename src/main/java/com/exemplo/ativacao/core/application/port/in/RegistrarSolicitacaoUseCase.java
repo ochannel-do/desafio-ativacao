@@ -3,7 +3,8 @@ package com.exemplo.ativacao.core.application.port.in;
 public interface RegistrarSolicitacaoUseCase {
   Resultado executar(Comando comando);
 
-  record Comando(String externalId, String customerId, String productCode) {}
+  /** {@code correlationId} vem da requisição de origem e segue até a chamada ao provedor. */
+  record Comando(String externalId, String customerId, String productCode, String correlationId) {}
 
   /** Cada desfecho de um registro; o chamador decide a resposta com switch exaustivo. */
   sealed interface Resultado {}

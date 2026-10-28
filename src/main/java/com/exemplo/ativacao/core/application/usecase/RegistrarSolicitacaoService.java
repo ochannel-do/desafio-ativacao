@@ -32,6 +32,7 @@ public final class RegistrarSolicitacaoService implements RegistrarSolicitacaoUs
             comando.externalId(),
             comando.customerId(),
             comando.productCode(),
+            comando.correlationId(),
             clock.instant());
     if (repository.inserirSeAusente(nova)) return new Criada(SolicitacaoView.de(nova));
     var existente =

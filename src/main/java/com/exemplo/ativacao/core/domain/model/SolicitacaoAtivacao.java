@@ -14,61 +14,81 @@ import java.util.regex.Pattern;
  */
 public final class SolicitacaoAtivacao {
   public static final int TAMANHO_MAXIMO = 64;
+  private static final int TAMANHO_MAXIMO_ERRO = 255;
   private static final Pattern IDENTIFICADOR = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]*");
 
   private final UUID id;
   private final String externalId;
   private final String customerId;
   private final String productCode;
+  private final String correlationId;
   private final Instant createdAt;
   private final long versao;
   private StatusSolicitacao status;
   private int tentativas;
+  private Instant proximaTentativaEm;
+  private String ultimoErro;
   private Instant updatedAt;
 
-  private SolicitacaoAtivacao(
+  private SolicitacaoAtivacao(Dados d) {
+    this.id = Objects.requireNonNull(d.id(), "id");
+    this.externalId = identificador("externalId", d.externalId());
+    this.customerId = identificador("customerId", d.customerId());
+    this.productCode = identificador("productCode", d.productCode());
+    this.correlationId = d.correlationId();
+    this.status = Objects.requireNonNull(d.status(), "status");
+    if (d.tentativas() < 0) throw new IllegalArgumentException("tentativas negativas");
+    this.tentativas = d.tentativas();
+    this.proximaTentativaEm = Objects.requireNonNull(d.proximaTentativaEm(), "proximaTentativaEm");
+    this.ultimoErro = d.ultimoErro();
+    this.createdAt = Objects.requireNonNull(d.createdAt(), "createdAt");
+    this.updatedAt = Objects.requireNonNull(d.updatedAt(), "updatedAt");
+    this.versao = d.versao();
+  }
+
+  /** Estado persistido, usado só para reconstituir o agregado. */
+  public record Dados(
       UUID id,
       String externalId,
       String customerId,
       String productCode,
+      String correlationId,
       StatusSolicitacao status,
       int tentativas,
+      Instant proximaTentativaEm,
+      String ultimoErro,
       Instant createdAt,
       Instant updatedAt,
-      long versao) {
-    this.id = Objects.requireNonNull(id, "id");
-    this.externalId = identificador("externalId", externalId);
-    this.customerId = identificador("customerId", customerId);
-    this.productCode = identificador("productCode", productCode);
-    this.status = Objects.requireNonNull(status, "status");
-    if (tentativas < 0) throw new IllegalArgumentException("tentativas negativas");
-    this.tentativas = tentativas;
-    this.createdAt = Objects.requireNonNull(createdAt, "createdAt");
-    this.updatedAt = Objects.requireNonNull(updatedAt, "updatedAt");
-    this.versao = versao;
-  }
+      long versao) {}
 
   public static SolicitacaoAtivacao nova(
-      UUID id, String externalId, String customerId, String productCode, Instant agora) {
-    return new SolicitacaoAtivacao(
-        id, externalId, customerId, productCode, PENDING, 0, agora, agora, 0);
-  }
-
-  public static SolicitacaoAtivacao reconstituir(
       UUID id,
       String externalId,
       String customerId,
       String productCode,
-      StatusSolicitacao status,
-      int tentativas,
-      Instant createdAt,
-      Instant updatedAt,
-      long versao) {
+      String correlationId,
+      Instant agora) {
     return new SolicitacaoAtivacao(
-        id, externalId, customerId, productCode, status, tentativas, createdAt, updatedAt, versao);
+        new Dados(
+            id,
+            externalId,
+            customerId,
+            productCode,
+            correlationId,
+            PENDING,
+            0,
+            agora,
+            null,
+            agora,
+            agora,
+            0));
   }
 
-  /** PENDING -> PROCESSING: uma tentativa de ativação começa. */
+  public static SolicitacaoAtivacao reconstituir(Dados dados) {
+    return new SolicitacaoAtivacao(dados);
+  }
+
+  /** PENDING -> PROCESSING: uma tentativa de ativação começa e é contada. */
   public void iniciarProcessamento(Instant agora) {
     mover(PENDING, PROCESSING, agora);
     tentativas++;
@@ -77,26 +97,56 @@ public final class SolicitacaoAtivacao {
   /** PROCESSING -> COMPLETED: o provedor confirmou a ativação. */
   public void concluir(Instant agora) {
     mover(PROCESSING, COMPLETED, agora);
+    ultimoErro = null;
   }
 
   /** PROCESSING -> FAILED: falha definitiva, não haverá nova tentativa. */
-  public void falhar(Instant agora) {
+  public void falhar(Instant agora, String motivo) {
+    String erro = motivo(motivo);
     mover(PROCESSING, FAILED, agora);
+    ultimoErro = erro;
   }
 
   /** PROCESSING -> PENDING: falha temporária, a solicitação volta para a fila. */
-  public void devolverParaFila(Instant agora) {
+  public void devolverParaFila(Instant agora, Instant proximaTentativa, String motivo) {
+    Objects.requireNonNull(proximaTentativa, "proximaTentativa");
+    String erro = motivo(motivo);
     mover(PROCESSING, PENDING, agora);
+    proximaTentativaEm = proximaTentativa;
+    ultimoErro = erro;
   }
 
   public boolean mesmoConteudo(String customerId, String productCode) {
     return this.customerId.equals(customerId) && this.productCode.equals(productCode);
   }
 
+  public Dados dados() {
+    return new Dados(
+        id,
+        externalId,
+        customerId,
+        productCode,
+        correlationId,
+        status,
+        tentativas,
+        proximaTentativaEm,
+        ultimoErro,
+        createdAt,
+        updatedAt,
+        versao);
+  }
+
   private void mover(StatusSolicitacao esperado, StatusSolicitacao destino, Instant agora) {
     if (status != esperado) throw new TransicaoInvalidaException(status, destino);
     status = destino;
     updatedAt = Objects.requireNonNull(agora, "agora");
+  }
+
+  private static String motivo(String motivo) {
+    if (motivo == null || motivo.isBlank()) throw new IllegalArgumentException("motivo vazio");
+    return motivo.length() > TAMANHO_MAXIMO_ERRO
+        ? motivo.substring(0, TAMANHO_MAXIMO_ERRO)
+        : motivo;
   }
 
   private static String identificador(String campo, String valor) {
@@ -121,12 +171,24 @@ public final class SolicitacaoAtivacao {
     return productCode;
   }
 
+  public String correlationId() {
+    return correlationId;
+  }
+
   public StatusSolicitacao status() {
     return status;
   }
 
   public int tentativas() {
     return tentativas;
+  }
+
+  public Instant proximaTentativaEm() {
+    return proximaTentativaEm;
+  }
+
+  public String ultimoErro() {
+    return ultimoErro;
   }
 
   public Instant createdAt() {

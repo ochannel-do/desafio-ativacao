@@ -12,6 +12,7 @@ public record SolicitacaoView(
     String productCode,
     StatusSolicitacao status,
     int tentativas,
+    String ultimoErro,
     Instant createdAt,
     Instant updatedAt) {
   public static SolicitacaoView de(SolicitacaoAtivacao s) {
@@ -22,6 +23,7 @@ public record SolicitacaoView(
         s.productCode(),
         s.status(),
         s.tentativas(),
+        s.ultimoErro(),
         s.createdAt(),
         s.updatedAt());
   }

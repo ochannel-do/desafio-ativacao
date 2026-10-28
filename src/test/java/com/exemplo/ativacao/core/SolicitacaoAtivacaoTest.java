@@ -18,7 +18,7 @@ class SolicitacaoAtivacaoTest {
 
   static SolicitacaoAtivacao nova() {
     return SolicitacaoAtivacao.nova(
-        UUID.randomUUID(), "EXT-12345", "CUST-10001", "INTERNET-500", T0);
+        UUID.randomUUID(), "EXT-12345", "CUST-10001", "INTERNET-500", "trace-1", T0);
   }
 
   @Test
@@ -45,12 +45,15 @@ class SolicitacaoAtivacaoTest {
   void falhaTemporariaVoltaParaFilaEPreservaContador() {
     var s = nova();
     s.iniciarProcessamento(T1);
-    s.devolverParaFila(T1);
+    s.devolverParaFila(T1, T1.plusSeconds(30), "HTTP 503");
+    assertThat(s.proximaTentativaEm()).isEqualTo(T1.plusSeconds(30));
+    assertThat(s.ultimoErro()).isEqualTo("HTTP 503");
     assertThat(s.status()).isEqualTo(PENDING);
     s.iniciarProcessamento(T1);
     assertThat(s.tentativas()).isEqualTo(2);
-    s.falhar(T1);
+    s.falhar(T1, "HTTP 400");
     assertThat(s.status()).isEqualTo(FAILED);
+    assertThat(s.ultimoErro()).isEqualTo("HTTP 400");
   }
 
   @Test
@@ -61,8 +64,9 @@ class SolicitacaoAtivacaoTest {
     assertThatThrownBy(() -> concluida.iniciarProcessamento(T1))
         .isInstanceOf(TransicaoInvalidaException.class)
         .hasMessageContaining("COMPLETED -> PROCESSING");
-    assertThatThrownBy(() -> concluida.falhar(T1)).isInstanceOf(TransicaoInvalidaException.class);
-    assertThatThrownBy(() -> concluida.devolverParaFila(T1))
+    assertThatThrownBy(() -> concluida.falhar(T1, "x"))
+        .isInstanceOf(TransicaoInvalidaException.class);
+    assertThatThrownBy(() -> concluida.devolverParaFila(T1, T1, "x"))
         .isInstanceOf(TransicaoInvalidaException.class);
     assertThat(concluida.status().finalizado()).isTrue();
   }
@@ -79,7 +83,7 @@ class SolicitacaoAtivacaoTest {
   @NullAndEmptySource
   @ValueSource(strings = {" ", "-EXT", "EXT 1", "EXT/1"})
   void rejeitaIdentificadorInvalido(String valor) {
-    assertThatThrownBy(() -> SolicitacaoAtivacao.nova(UUID.randomUUID(), valor, "C", "P", T0))
+    assertThatThrownBy(() -> SolicitacaoAtivacao.nova(UUID.randomUUID(), valor, "C", "P", null, T0))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("externalId");
   }
@@ -87,9 +91,35 @@ class SolicitacaoAtivacaoTest {
   @Test
   void rejeitaIdentificadorLongo() {
     String longo = "A".repeat(SolicitacaoAtivacao.TAMANHO_MAXIMO + 1);
-    assertThatThrownBy(() -> SolicitacaoAtivacao.nova(UUID.randomUUID(), "E", "C", longo, T0))
+    assertThatThrownBy(() -> SolicitacaoAtivacao.nova(UUID.randomUUID(), "E", "C", longo, null, T0))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("productCode");
+  }
+
+  @Test
+  void novaFicaDisponivelImediatamenteParaOWorker() {
+    assertThat(nova().proximaTentativaEm()).isEqualTo(T0);
+    assertThat(nova().correlationId()).isEqualTo("trace-1");
+  }
+
+  @Test
+  void concluirLimpaUltimoErroEMotivoLongoEhTruncado() {
+    var s = nova();
+    s.iniciarProcessamento(T1);
+    s.devolverParaFila(T1, T1, "x".repeat(400));
+    assertThat(s.ultimoErro()).hasSize(255);
+    s.iniciarProcessamento(T1);
+    s.concluir(T1);
+    assertThat(s.ultimoErro()).isNull();
+    assertThatThrownBy(() -> nova().falhar(T1, " ")).isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @Test
+  void reconstituiAPartirDosDados() {
+    var s = nova();
+    s.iniciarProcessamento(T1);
+    var copia = SolicitacaoAtivacao.reconstituir(s.dados());
+    assertThat(copia.dados()).isEqualTo(s.dados());
   }
 
   @Test

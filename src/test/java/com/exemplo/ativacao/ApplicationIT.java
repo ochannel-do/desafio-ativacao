@@ -11,7 +11,7 @@ import org.springframework.context.annotation.Import;
 
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-    properties = "management.tracing.enabled=false")
+    properties = {"management.tracing.enabled=false", "ativacao.processamento.habilitado=false"})
 @Import(PostgresTestConfiguration.class)
 class ApplicationIT {
   @Autowired TestRestTemplate http;

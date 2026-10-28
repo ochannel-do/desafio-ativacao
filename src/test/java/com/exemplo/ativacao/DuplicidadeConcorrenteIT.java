@@ -16,7 +16,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 /** Requisições HTTP reais e PostgreSQL real: a garantia vem da constraint, não do teste. */
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-    properties = "management.tracing.enabled=false")
+    properties = {"management.tracing.enabled=false", "ativacao.processamento.habilitado=false"})
 @Import(PostgresTestConfiguration.class)
 class DuplicidadeConcorrenteIT {
   static final int PARALELAS = 16;

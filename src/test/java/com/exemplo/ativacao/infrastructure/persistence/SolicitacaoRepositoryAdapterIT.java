@@ -4,24 +4,31 @@ import static com.exemplo.ativacao.core.domain.model.StatusSolicitacao.*;
 import static org.assertj.core.api.Assertions.*;
 
 import com.exemplo.ativacao.core.application.port.in.ListarSolicitacoesUseCase.Filtro;
+import com.exemplo.ativacao.core.application.port.in.ReconciliarSolicitacoesUseCase;
 import com.exemplo.ativacao.core.application.port.out.SolicitacaoRepository;
 import com.exemplo.ativacao.core.application.port.out.SolicitacaoRepository.ConflitoDeVersaoException;
+import com.exemplo.ativacao.core.application.port.out.Transacao;
 import com.exemplo.ativacao.core.domain.model.SolicitacaoAtivacao;
 import com.exemplo.ativacao.support.PostgresTestConfiguration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.*;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-@SpringBootTest(properties = "management.tracing.enabled=false")
+@SpringBootTest(
+    properties = {"management.tracing.enabled=false", "ativacao.processamento.habilitado=false"})
 @Import(PostgresTestConfiguration.class)
 class SolicitacaoRepositoryAdapterIT {
   @Autowired SolicitacaoRepository repository;
   @Autowired JdbcTemplate jdbc;
+  @Autowired Transacao transacao;
+  @Autowired ReconciliarSolicitacoesUseCase reconciliar;
   final Instant t0 = Instant.parse("2026-10-26T14:03:11.123456Z");
 
   @BeforeEach
@@ -31,7 +38,7 @@ class SolicitacaoRepositoryAdapterIT {
 
   SolicitacaoAtivacao nova(String externalId, String customer, Instant criadaEm) {
     return SolicitacaoAtivacao.nova(
-        UUID.randomUUID(), externalId, customer, "INTERNET-500", criadaEm);
+        UUID.randomUUID(), externalId, customer, "INTERNET-500", "trace-" + externalId, criadaEm);
   }
 
   @Test
@@ -56,8 +63,8 @@ class SolicitacaoRepositoryAdapterIT {
             () ->
                 jdbc.update(
                     "insert into activation_request (id, external_id, customer_id, product_code,"
-                        + " status, created_at, updated_at) values (?, 'EXT-1', 'C', 'P',"
-                        + " 'PENDING', now(), now())",
+                        + " status, next_attempt_at, created_at, updated_at) values (?, 'EXT-1', 'C',"
+                        + " 'P', 'PENDING', now(), now(), now())",
                     UUID.randomUUID()))
         .hasMessageContaining("uk_activation_request_external_id");
   }
@@ -106,5 +113,68 @@ class SolicitacaoRepositoryAdapterIT {
         .extracting(SolicitacaoAtivacao::externalId)
         .containsExactly("EXT-2", "EXT-0");
     assertThat(repository.listar(new Filtro(null, null, 0, 10)).total()).isEqualTo(5);
+  }
+
+  @Test
+  void instanciasConcorrentesNaoPegamAMesmaSolicitacao() throws Exception {
+    for (int i = 0; i < 3; i++) repository.inserirSeAusente(nova("EXT-" + i, "C", t0));
+    var primeiraReservou = new CountDownLatch(1);
+    var liberarPrimeira = new CountDownLatch(1);
+    try (var executor = Executors.newFixedThreadPool(2)) {
+      Future<List<SolicitacaoAtivacao>> primeira =
+          executor.submit(
+              () ->
+                  transacao.executar(
+                      () -> {
+                        var lote = repository.bloquearPendentes(t0.plusSeconds(1), 2);
+                        primeiraReservou.countDown();
+                        aguardar(liberarPrimeira);
+                        return lote;
+                      }));
+      primeiraReservou.await(10, TimeUnit.SECONDS);
+      // Com a primeira transação ainda aberta, a segunda pula as linhas travadas em vez de esperar.
+      var segunda =
+          executor
+              .submit(
+                  () ->
+                      transacao.executar(() -> repository.bloquearPendentes(t0.plusSeconds(1), 10)))
+              .get(5, TimeUnit.SECONDS);
+      liberarPrimeira.countDown();
+      assertThat(primeira.get(10, TimeUnit.SECONDS)).hasSize(2);
+      assertThat(segunda).hasSize(1);
+      assertThat(segunda.getFirst().id())
+          .isNotIn(primeira.get().stream().map(SolicitacaoAtivacao::id).toList());
+    }
+  }
+
+  @Test
+  void bloquearExigeTransacaoDoChamador() {
+    assertThatThrownBy(() -> repository.bloquearPendentes(t0, 1))
+        .isInstanceOf(org.springframework.transaction.IllegalTransactionStateException.class);
+  }
+
+  @Test
+  void reconciliacaoDevolvePresaParaAFila() {
+    var presa = nova("EXT-PRESA", "C", t0);
+    repository.inserirSeAusente(presa);
+    var lida = repository.porId(presa.id()).orElseThrow();
+    lida.iniciarProcessamento(t0);
+    repository.atualizar(lida);
+    jdbc.update(
+        "update activation_request set updated_at = now() - interval '10 minutes' where id = ?",
+        presa.id());
+
+    assertThat(reconciliar.reconciliar()).isEqualTo(1);
+    var atual = repository.porId(presa.id()).orElseThrow();
+    assertThat(atual.status()).isEqualTo(PENDING);
+    assertThat(atual.ultimoErro()).contains("interrompido");
+  }
+
+  private static void aguardar(CountDownLatch latch) {
+    try {
+      latch.await(10, TimeUnit.SECONDS);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+    }
   }
 }

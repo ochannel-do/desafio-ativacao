@@ -2,6 +2,7 @@ package com.exemplo.ativacao.infrastructure.web;
 
 import static org.hamcrest.Matchers.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -35,6 +36,7 @@ class SolicitacaoHttpTest {
           "INTERNET-500",
           StatusSolicitacao.PENDING,
           0,
+          null,
           Instant.parse("2026-10-26T14:03:11Z"),
           Instant.parse("2026-10-26T14:03:11Z"));
 
@@ -45,7 +47,8 @@ class SolicitacaoHttpTest {
 
   @Test
   void criacaoRetorna201ComLocationEDatasIso() throws Exception {
-    when(registrar.executar(new Comando("EXT-12345", "CUST-10001", "INTERNET-500")))
+    when(registrar.executar(
+            argThat(c -> c.externalId().equals("EXT-12345") && c.correlationId() != null)))
         .thenReturn(new Criada(VIEW));
     mvc.perform(post("/api/v1/requests").contentType(MediaType.APPLICATION_JSON).content(JSON))
         .andExpect(status().isCreated())

@@ -1,0 +1,12 @@
+# Perfil dos testes de integração: sem exportar traces, sem agendador (salvo quando o teste liga)
+# e JWT assinado com chave HMAC de teste, sem servidor de autorização.
+ativacao:
+  seguranca:
+    emissor: https://auth.teste
+    audiencia: ativacao-api
+    chave-hmac: chave-de-teste-com-pelo-menos-32-bytes!!
+  processamento:
+    habilitado: false
+management:
+  tracing:
+    enabled: false

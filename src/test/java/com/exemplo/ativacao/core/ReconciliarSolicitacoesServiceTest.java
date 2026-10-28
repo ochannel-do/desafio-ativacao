@@ -35,7 +35,7 @@ class ReconciliarSolicitacoesServiceTest {
   SolicitacaoAtivacao processandoDesde(Instant desde, int tentativas) {
     var s =
         SolicitacaoAtivacao.nova(
-            UUID.randomUUID(), "EXT-" + UUID.randomUUID(), "C", "P", null, desde);
+            UUID.randomUUID(), "sistema-a", "EXT-" + UUID.randomUUID(), "C", "P", null, desde);
     for (int i = 0; i < tentativas; i++) {
       if (i > 0) s.devolverParaFila(desde, desde, "x");
       s.iniciarProcessamento(desde);

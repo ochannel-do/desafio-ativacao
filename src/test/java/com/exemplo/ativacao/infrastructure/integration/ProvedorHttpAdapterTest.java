@@ -9,6 +9,7 @@ import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.http.Fault;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.*;
 import java.util.UUID;
 import org.junit.jupiter.api.*;
@@ -52,7 +53,8 @@ class ProvedorHttpAdapterTest {
         new ProvedorProperties(
             baseUrl, Duration.ofMillis(500), Duration.ofSeconds(1), "token-teste");
     var client = ProvedorHttpAdapter.cliente(RestClient.builder(), props);
-    return new ProvedorHttpAdapter(client, circuito, Clock.fixed(agora, ZoneOffset.UTC));
+    return new ProvedorHttpAdapter(
+        client, circuito, Clock.fixed(agora, ZoneOffset.UTC), new SimpleMeterRegistry());
   }
 
   void responder(int status) {

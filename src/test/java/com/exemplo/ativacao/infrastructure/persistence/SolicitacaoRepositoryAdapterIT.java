@@ -20,9 +20,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.ActiveProfiles;
 
-@SpringBootTest(
-    properties = {"management.tracing.enabled=false", "ativacao.processamento.habilitado=false"})
+@SpringBootTest
+@ActiveProfiles("test")
 @Import(PostgresTestConfiguration.class)
 class SolicitacaoRepositoryAdapterIT {
   @Autowired SolicitacaoRepository repository;
@@ -38,7 +39,13 @@ class SolicitacaoRepositoryAdapterIT {
 
   SolicitacaoAtivacao nova(String externalId, String customer, Instant criadaEm) {
     return SolicitacaoAtivacao.nova(
-        UUID.randomUUID(), externalId, customer, "INTERNET-500", "trace-" + externalId, criadaEm);
+        UUID.randomUUID(),
+        "sistema-a",
+        externalId,
+        customer,
+        "INTERNET-500",
+        "trace-" + externalId,
+        criadaEm);
   }
 
   @Test
@@ -62,9 +69,9 @@ class SolicitacaoRepositoryAdapterIT {
     assertThatThrownBy(
             () ->
                 jdbc.update(
-                    "insert into activation_request (id, external_id, customer_id, product_code,"
-                        + " status, next_attempt_at, created_at, updated_at) values (?, 'EXT-1', 'C',"
-                        + " 'P', 'PENDING', now(), now(), now())",
+                    "insert into activation_request (id, client_id, external_id, customer_id,"
+                        + " product_code, status, next_attempt_at, created_at, updated_at) values"
+                        + " (?, 'x', 'EXT-1', 'C', 'P', 'PENDING', now(), now(), now())",
                     UUID.randomUUID()))
         .hasMessageContaining("uk_activation_request_external_id");
   }
@@ -99,20 +106,21 @@ class SolicitacaoRepositoryAdapterIT {
     processando.iniciarProcessamento(t0.plusSeconds(600));
     repository.atualizar(processando);
 
-    var clienteA = repository.listar(new Filtro(null, "CUST-A", 0, 2));
+    var clienteA = repository.listar(new Filtro("sistema-a", null, "CUST-A", 0, 2));
     assertThat(clienteA.total()).isEqualTo(3);
     assertThat(clienteA.itens())
         .extracting(SolicitacaoAtivacao::externalId)
         .containsExactly("EXT-4", "EXT-2");
-    assertThat(repository.listar(new Filtro(null, "CUST-A", 1, 2)).itens())
+    assertThat(repository.listar(new Filtro("sistema-a", null, "CUST-A", 1, 2)).itens())
         .extracting(SolicitacaoAtivacao::externalId)
         .containsExactly("EXT-0");
 
-    var pendentesA = repository.listar(new Filtro(PENDING, "CUST-A", 0, 10));
+    var pendentesA = repository.listar(new Filtro("sistema-a", PENDING, "CUST-A", 0, 10));
     assertThat(pendentesA.itens())
         .extracting(SolicitacaoAtivacao::externalId)
         .containsExactly("EXT-2", "EXT-0");
-    assertThat(repository.listar(new Filtro(null, null, 0, 10)).total()).isEqualTo(5);
+    assertThat(repository.listar(new Filtro("sistema-a", null, null, 0, 10)).total()).isEqualTo(5);
+    assertThat(repository.listar(new Filtro("sistema-b", null, null, 0, 10)).total()).isZero();
   }
 
   @Test

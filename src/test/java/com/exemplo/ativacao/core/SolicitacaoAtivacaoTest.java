@@ -18,7 +18,7 @@ class SolicitacaoAtivacaoTest {
 
   static SolicitacaoAtivacao nova() {
     return SolicitacaoAtivacao.nova(
-        UUID.randomUUID(), "EXT-12345", "CUST-10001", "INTERNET-500", "trace-1", T0);
+        UUID.randomUUID(), "sistema-a", "EXT-12345", "CUST-10001", "INTERNET-500", "trace-1", T0);
   }
 
   @Test
@@ -83,7 +83,9 @@ class SolicitacaoAtivacaoTest {
   @NullAndEmptySource
   @ValueSource(strings = {" ", "-EXT", "EXT 1", "EXT/1"})
   void rejeitaIdentificadorInvalido(String valor) {
-    assertThatThrownBy(() -> SolicitacaoAtivacao.nova(UUID.randomUUID(), valor, "C", "P", null, T0))
+    assertThatThrownBy(
+            () ->
+                SolicitacaoAtivacao.nova(UUID.randomUUID(), "sistema-a", valor, "C", "P", null, T0))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("externalId");
   }
@@ -91,7 +93,9 @@ class SolicitacaoAtivacaoTest {
   @Test
   void rejeitaIdentificadorLongo() {
     String longo = "A".repeat(SolicitacaoAtivacao.TAMANHO_MAXIMO + 1);
-    assertThatThrownBy(() -> SolicitacaoAtivacao.nova(UUID.randomUUID(), "E", "C", longo, null, T0))
+    assertThatThrownBy(
+            () ->
+                SolicitacaoAtivacao.nova(UUID.randomUUID(), "sistema-a", "E", "C", longo, null, T0))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("productCode");
   }
@@ -125,8 +129,11 @@ class SolicitacaoAtivacaoTest {
   @Test
   void comparaConteudoParaRetry() {
     var s = nova();
-    assertThat(s.mesmoConteudo("CUST-10001", "INTERNET-500")).isTrue();
-    assertThat(s.mesmoConteudo("CUST-10001", "INTERNET-900")).isFalse();
-    assertThat(s.mesmoConteudo("CUST-2", "INTERNET-500")).isFalse();
+    assertThat(s.mesmoConteudo("sistema-a", "CUST-10001", "INTERNET-500")).isTrue();
+    assertThat(s.mesmoConteudo("sistema-a", "CUST-10001", "INTERNET-900")).isFalse();
+    assertThat(s.mesmoConteudo("sistema-a", "CUST-2", "INTERNET-500")).isFalse();
+    assertThat(s.mesmoConteudo("sistema-b", "CUST-10001", "INTERNET-500")).isFalse();
+    assertThat(s.pertenceA("sistema-a")).isTrue();
+    assertThat(s.pertenceA("sistema-b")).isFalse();
   }
 }

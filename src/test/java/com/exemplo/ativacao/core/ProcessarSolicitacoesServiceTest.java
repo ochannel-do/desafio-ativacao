@@ -49,7 +49,7 @@ class ProcessarSolicitacoesServiceTest {
   SolicitacaoAtivacao pendente() {
     return repository.salvar(
         SolicitacaoAtivacao.nova(
-            UUID.randomUUID(), "EXT-1", "CUST-1", "INTERNET-500", "trace-1", agora));
+            UUID.randomUUID(), "sistema-a", "EXT-1", "CUST-1", "INTERNET-500", "trace-1", agora));
   }
 
   @Test

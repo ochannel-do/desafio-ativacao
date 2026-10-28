@@ -3,6 +3,7 @@ package com.exemplo.ativacao;
 import static org.assertj.core.api.Assertions.*;
 
 import com.exemplo.ativacao.support.PostgresTestConfiguration;
+import com.exemplo.ativacao.support.Tokens;
 import java.util.*;
 import java.util.concurrent.*;
 import org.junit.jupiter.api.*;
@@ -12,11 +13,11 @@ import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.*;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.ActiveProfiles;
 
 /** Requisições HTTP reais e PostgreSQL real: a garantia vem da constraint, não do teste. */
-@SpringBootTest(
-    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-    properties = {"management.tracing.enabled=false", "ativacao.processamento.habilitado=false"})
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@ActiveProfiles("test")
 @Import(PostgresTestConfiguration.class)
 class DuplicidadeConcorrenteIT {
   static final int PARALELAS = 16;
@@ -29,8 +30,13 @@ class DuplicidadeConcorrenteIT {
   }
 
   ResponseEntity<Map> enviar(String productCode) {
+    return enviar("sistema-a", productCode);
+  }
+
+  ResponseEntity<Map> enviar(String clientId, String productCode) {
     var headers = new HttpHeaders();
     headers.setContentType(MediaType.APPLICATION_JSON);
+    headers.setBearerAuth(Tokens.para(clientId, "activation:write"));
     return http.postForEntity(
         "/api/v1/requests",
         new HttpEntity<>(
@@ -67,6 +73,16 @@ class DuplicidadeConcorrenteIT {
     }
     assertThat(jdbc.queryForObject("select count(*) from activation_request", Long.class))
         .isEqualTo(1);
+  }
+
+  @Test
+  void outroConsumidorComOMesmoExternalIdNaoRecebeORegistroAlheio() {
+    var original = enviar("sistema-a", "INTERNET-500");
+    var deOutro = enviar("sistema-b", "INTERNET-500");
+    assertThat(deOutro.getStatusCode().value()).isEqualTo(409);
+    assertThat(deOutro.getBody()).doesNotContainKey("id");
+    assertThat(deOutro.getBody().toString())
+        .doesNotContain(original.getBody().get("id").toString());
   }
 
   @Test

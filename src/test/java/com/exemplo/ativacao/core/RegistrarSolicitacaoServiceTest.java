@@ -20,7 +20,8 @@ class RegistrarSolicitacaoServiceTest {
   final SolicitacaoRepository repository = mock(SolicitacaoRepository.class);
   final RegistrarSolicitacaoService service =
       new RegistrarSolicitacaoService(repository, Clock.fixed(agora, ZoneOffset.UTC), () -> id);
-  final Comando comando = new Comando("EXT-12345", "CUST-10001", "INTERNET-500", "trace-1");
+  final Comando comando =
+      new Comando("sistema-a", "EXT-12345", "CUST-10001", "INTERNET-500", "trace-1");
 
   @Test
   void criaQuandoExternalIdEhNovo() {
@@ -43,6 +44,7 @@ class RegistrarSolicitacaoServiceTest {
     var original =
         SolicitacaoAtivacao.nova(
             UUID.randomUUID(),
+            "sistema-a",
             "EXT-12345",
             "CUST-10001",
             "INTERNET-500",
@@ -59,15 +61,25 @@ class RegistrarSolicitacaoServiceTest {
   void conteudoDiferenteEhConflito() {
     var original =
         SolicitacaoAtivacao.nova(
-            UUID.randomUUID(), "EXT-12345", "CUST-10001", "TV-100", null, agora);
+            UUID.randomUUID(), "sistema-a", "EXT-12345", "CUST-10001", "TV-100", null, agora);
     when(repository.inserirSeAusente(any())).thenReturn(false);
     when(repository.porExternalId("EXT-12345")).thenReturn(Optional.of(original));
     assertThat(service.executar(comando)).isEqualTo(new Conflitante("EXT-12345"));
   }
 
   @Test
+  void mesmoExternalIdDeOutroConsumidorEhConflitoSemExporORegistro() {
+    var deOutro =
+        SolicitacaoAtivacao.nova(
+            UUID.randomUUID(), "sistema-b", "EXT-12345", "CUST-10001", "INTERNET-500", null, agora);
+    when(repository.inserirSeAusente(any())).thenReturn(false);
+    when(repository.porExternalId("EXT-12345")).thenReturn(Optional.of(deOutro));
+    assertThat(service.executar(comando)).isEqualTo(new Conflitante("EXT-12345"));
+  }
+
+  @Test
   void dadosInvalidosNaoChegamAoRepositorio() {
-    assertThatThrownBy(() -> service.executar(new Comando("", "C", "P", null)))
+    assertThatThrownBy(() -> service.executar(new Comando("sistema-a", "", "C", "P", null)))
         .isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(() -> service.executar(null)).isInstanceOf(IllegalArgumentException.class);
     verifyNoInteractions(repository);

@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.*;
 import static org.awaitility.Awaitility.await;
 
 import com.exemplo.ativacao.support.PostgresTestConfiguration;
+import com.exemplo.ativacao.support.Tokens;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.stubbing.Scenario;
 import java.time.Duration;
@@ -17,6 +18,7 @@ import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.*;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
@@ -24,13 +26,14 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = {
-      "management.tracing.enabled=false",
+      "ativacao.processamento.habilitado=true",
       "ativacao.processamento.intervalo=100ms",
       "ativacao.processamento.backoff-base=100ms",
       "ativacao.processamento.backoff-teto=200ms",
       "ativacao.processamento.intervalo-reconciliacao=1h",
       "ativacao.provedor.read-timeout=500ms"
     })
+@ActiveProfiles("test")
 @Import(PostgresTestConfiguration.class)
 class FluxoAtivacaoIT {
   static WireMockServer provedor = new WireMockServer(wireMockConfig().dynamicPort());
@@ -61,6 +64,7 @@ class FluxoAtivacaoIT {
   ResponseEntity<Map> criar(String externalId) {
     var headers = new HttpHeaders();
     headers.setContentType(MediaType.APPLICATION_JSON);
+    headers.setBearerAuth(Tokens.para("sistema-a", "activation:write"));
     return http.postForEntity(
         "/api/v1/requests",
         new HttpEntity<>(
@@ -73,7 +77,16 @@ class FluxoAtivacaoIT {
     return await()
         .atMost(Duration.ofSeconds(10))
         .until(
-            () -> http.getForObject("/api/v1/requests/" + id, Map.class),
+            () -> {
+              var headers = new HttpHeaders();
+              headers.setBearerAuth(Tokens.para("sistema-a", "activation:read"));
+              return http.exchange(
+                      "/api/v1/requests/" + id,
+                      HttpMethod.GET,
+                      new HttpEntity<>(headers),
+                      Map.class)
+                  .getBody();
+            },
             body -> status.equals(body.get("status")));
   }
 

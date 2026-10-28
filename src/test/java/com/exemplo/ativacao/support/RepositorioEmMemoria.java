@@ -38,7 +38,12 @@ public class RepositorioEmMemoria implements SolicitacaoRepository {
   }
 
   public Fatia listar(Filtro filtro) {
-    throw new UnsupportedOperationException();
+    var itens =
+        linhas.values().stream()
+            .filter(d -> d.consumidor().equals(filtro.consumidor()))
+            .map(SolicitacaoAtivacao::reconstituir)
+            .toList();
+    return new Fatia(itens, itens.size());
   }
 
   public List<SolicitacaoAtivacao> bloquearPendentes(Instant agora, int limite) {
@@ -67,6 +72,7 @@ public class RepositorioEmMemoria implements SolicitacaoRepository {
     var nova =
         new SolicitacaoAtivacao.Dados(
             d.id(),
+            d.consumidor(),
             d.externalId(),
             d.customerId(),
             d.productCode(),

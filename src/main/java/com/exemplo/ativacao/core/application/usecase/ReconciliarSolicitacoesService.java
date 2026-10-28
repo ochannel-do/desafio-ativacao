@@ -12,7 +12,7 @@ import java.time.Duration;
  */
 public final class ReconciliarSolicitacoesService implements ReconciliarSolicitacoesUseCase {
   static final String MOTIVO = "Processamento interrompido sem resposta do provedor";
-  private final SolicitacaoRepository repository;
+  private final SolicitacaoRepository solicitacaoAdapter;
   private final Transacao transacao;
   private final PoliticaDeRetentativa politica;
   private final Clock clock;
@@ -20,13 +20,13 @@ public final class ReconciliarSolicitacoesService implements ReconciliarSolicita
   private final int tamanhoLote;
 
   public ReconciliarSolicitacoesService(
-      SolicitacaoRepository repository,
+      SolicitacaoRepository solicitacaoAdapter,
       Transacao transacao,
       PoliticaDeRetentativa politica,
       Clock clock,
       Duration prazo,
       int tamanhoLote) {
-    this.repository = repository;
+    this.solicitacaoAdapter = solicitacaoAdapter;
     this.transacao = transacao;
     this.politica = politica;
     this.clock = clock;
@@ -38,12 +38,13 @@ public final class ReconciliarSolicitacoesService implements ReconciliarSolicita
     return transacao.executar(
         () -> {
           var agora = clock.instant();
-          var presas = repository.bloquearPresasEmProcessamento(agora.minus(prazo), tamanhoLote);
+          var presas =
+              solicitacaoAdapter.bloquearPresasEmProcessamento(agora.minus(prazo), tamanhoLote);
           for (var s : presas) {
             if (politica.esgotou(s.tentativas()))
               s.falhar(agora, "Tentativas esgotadas: " + MOTIVO);
             else s.devolverParaFila(agora, agora, MOTIVO);
-            repository.atualizar(s);
+            solicitacaoAdapter.atualizar(s);
           }
           return presas.size();
         });

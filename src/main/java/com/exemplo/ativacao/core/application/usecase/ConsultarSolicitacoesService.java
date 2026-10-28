@@ -9,18 +9,21 @@ import java.util.UUID;
 
 public final class ConsultarSolicitacoesService
     implements ConsultarSolicitacaoUseCase, ListarSolicitacoesUseCase {
-  private final SolicitacaoRepository repository;
+  private final SolicitacaoRepository solicitacaoAdapter;
 
-  public ConsultarSolicitacoesService(SolicitacaoRepository repository) {
-    this.repository = repository;
+  public ConsultarSolicitacoesService(SolicitacaoRepository solicitacaoAdapter) {
+    this.solicitacaoAdapter = solicitacaoAdapter;
   }
 
   public Optional<SolicitacaoView> porId(UUID id, String consumidor) {
-    return repository.porId(id).filter(s -> s.pertenceA(consumidor)).map(SolicitacaoView::de);
+    return solicitacaoAdapter
+        .porId(id)
+        .filter(s -> s.pertenceA(consumidor))
+        .map(SolicitacaoView::de);
   }
 
   public Pagina listar(Filtro filtro) {
-    var fatia = repository.listar(filtro);
+    var fatia = solicitacaoAdapter.listar(filtro);
     return new Pagina(
         fatia.itens().stream().map(SolicitacaoView::de).toList(),
         filtro.pagina(),

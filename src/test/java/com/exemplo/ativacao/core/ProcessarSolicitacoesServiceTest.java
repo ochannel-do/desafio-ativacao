@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
 class ProcessarSolicitacoesServiceTest {
   final Instant agora = Instant.parse("2026-10-26T14:00:00Z");
   final Clock clock = Clock.fixed(agora, ZoneOffset.UTC);
-  final RepositorioEmMemoria repository = new RepositorioEmMemoria();
+  final RepositorioEmMemoria solicitacaoAdapter = new RepositorioEmMemoria();
   final List<Pedido> pedidos = new ArrayList<>();
   final Deque<Resposta> respostas = new ArrayDeque<>();
   boolean emTransacao;
@@ -44,10 +44,11 @@ class ProcessarSolicitacoesServiceTest {
   final PoliticaDeRetentativa politica =
       new PoliticaDeRetentativa(3, Duration.ofSeconds(2), Duration.ofMinutes(1), () -> 1.0);
   final ProcessarSolicitacoesService service =
-      new ProcessarSolicitacoesService(repository, provedor, transacao, politica, clock, 10);
+      new ProcessarSolicitacoesService(
+          solicitacaoAdapter, provedor, transacao, politica, clock, 10);
 
   SolicitacaoAtivacao pendente() {
-    return repository.salvar(
+    return solicitacaoAdapter.salvar(
         SolicitacaoAtivacao.nova(
             UUID.randomUUID(), "sistema-a", "EXT-1", "CUST-1", "INTERNET-500", "trace-1", agora));
   }
@@ -57,7 +58,7 @@ class ProcessarSolicitacoesServiceTest {
     var s = pendente();
     respostas.add(new Ativado());
     assertThat(service.processarLote()).isEqualTo(1);
-    var atual = repository.atual(s.id());
+    var atual = solicitacaoAdapter.atual(s.id());
     assertThat(atual.status()).isEqualTo(COMPLETED);
     assertThat(atual.tentativas()).isEqualTo(1);
     assertThat(pedidos.getFirst().chaveIdempotencia()).isEqualTo(s.id());
@@ -69,7 +70,7 @@ class ProcessarSolicitacoesServiceTest {
     var s = pendente();
     respostas.add(new Rejeitado("HTTP 400"));
     service.processarLote();
-    var atual = repository.atual(s.id());
+    var atual = solicitacaoAdapter.atual(s.id());
     assertThat(atual.status()).isEqualTo(FAILED);
     assertThat(atual.ultimoErro()).isEqualTo("HTTP 400");
   }
@@ -79,7 +80,7 @@ class ProcessarSolicitacoesServiceTest {
     var s = pendente();
     respostas.add(new Indisponivel("HTTP 500", null));
     service.processarLote();
-    var atual = repository.atual(s.id());
+    var atual = solicitacaoAdapter.atual(s.id());
     assertThat(atual.status()).isEqualTo(PENDING);
     assertThat(atual.proximaTentativaEm()).isEqualTo(agora.plusSeconds(2));
     assertThat(service.processarLote()).as("ainda não venceu").isZero();
@@ -90,7 +91,8 @@ class ProcessarSolicitacoesServiceTest {
     var s = pendente();
     respostas.add(new Indisponivel("HTTP 503", Duration.ofSeconds(45)));
     service.processarLote();
-    assertThat(repository.atual(s.id()).proximaTentativaEm()).isEqualTo(agora.plusSeconds(45));
+    assertThat(solicitacaoAdapter.atual(s.id()).proximaTentativaEm())
+        .isEqualTo(agora.plusSeconds(45));
   }
 
   @Test
@@ -98,15 +100,15 @@ class ProcessarSolicitacoesServiceTest {
     var s = pendente();
     respostas.add(new SemConfirmacao("timeout"));
     service.processarLote();
-    assertThat(repository.atual(s.id()).status()).isEqualTo(PENDING);
+    assertThat(solicitacaoAdapter.atual(s.id()).status()).isEqualTo(PENDING);
 
     var depois = Clock.fixed(agora.plusSeconds(10), ZoneOffset.UTC);
     respostas.add(new Ativado());
-    new ProcessarSolicitacoesService(repository, provedor, transacao, politica, depois, 10)
+    new ProcessarSolicitacoesService(solicitacaoAdapter, provedor, transacao, politica, depois, 10)
         .processarLote();
     assertThat(pedidos).extracting(Pedido::chaveIdempotencia).containsExactly(s.id(), s.id());
-    assertThat(repository.atual(s.id()).status()).isEqualTo(COMPLETED);
-    assertThat(repository.atual(s.id()).tentativas()).isEqualTo(2);
+    assertThat(solicitacaoAdapter.atual(s.id()).status()).isEqualTo(COMPLETED);
+    assertThat(solicitacaoAdapter.atual(s.id()).tentativas()).isEqualTo(2);
   }
 
   @Test
@@ -115,7 +117,7 @@ class ProcessarSolicitacoesServiceTest {
     for (int i = 0; i < 3; i++) {
       respostas.add(new Indisponivel("HTTP 500", null));
       new ProcessarSolicitacoesService(
-              repository,
+              solicitacaoAdapter,
               provedor,
               transacao,
               politica,
@@ -123,7 +125,7 @@ class ProcessarSolicitacoesServiceTest {
               10)
           .processarLote();
     }
-    var atual = repository.atual(s.id());
+    var atual = solicitacaoAdapter.atual(s.id());
     assertThat(atual.status()).isEqualTo(FAILED);
     assertThat(atual.tentativas()).isEqualTo(3);
     assertThat(atual.ultimoErro()).startsWith("Tentativas esgotadas");
@@ -135,14 +137,15 @@ class ProcessarSolicitacoesServiceTest {
     ProvedorAtivacao provedorLento =
         pedido -> {
           // Enquanto a chamada demora, a reconciliação devolve a solicitação para a fila.
-          var concorrente = repository.atual(pedido.chaveIdempotencia());
+          var concorrente = solicitacaoAdapter.atual(pedido.chaveIdempotencia());
           concorrente.devolverParaFila(agora, agora, "reconciliada");
-          repository.atualizar(concorrente);
+          solicitacaoAdapter.atualizar(concorrente);
           return new Ativado();
         };
-    new ProcessarSolicitacoesService(repository, provedorLento, transacao, politica, clock, 10)
+    new ProcessarSolicitacoesService(
+            solicitacaoAdapter, provedorLento, transacao, politica, clock, 10)
         .processarLote();
-    var atual = repository.atual(s.id());
+    var atual = solicitacaoAdapter.atual(s.id());
     assertThat(atual.status()).isEqualTo(PENDING);
     assertThat(atual.ultimoErro()).isEqualTo("reconciliada");
   }

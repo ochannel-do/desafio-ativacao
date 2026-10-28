@@ -14,7 +14,7 @@ import java.util.List;
  * reconciliação devolve a solicitação para a fila; a chave de idempotência evita ativar duas vezes.
  */
 public final class ProcessarSolicitacoesService implements ProcessarSolicitacoesUseCase {
-  private final SolicitacaoRepository repository;
+  private final SolicitacaoRepository solicitacaoAdapter;
   private final ProvedorAtivacao provedor;
   private final Transacao transacao;
   private final PoliticaDeRetentativa politica;
@@ -22,13 +22,13 @@ public final class ProcessarSolicitacoesService implements ProcessarSolicitacoes
   private final int tamanhoLote;
 
   public ProcessarSolicitacoesService(
-      SolicitacaoRepository repository,
+      SolicitacaoRepository solicitacaoAdapter,
       ProvedorAtivacao provedor,
       Transacao transacao,
       PoliticaDeRetentativa politica,
       Clock clock,
       int tamanhoLote) {
-    this.repository = repository;
+    this.solicitacaoAdapter = solicitacaoAdapter;
     this.provedor = provedor;
     this.transacao = transacao;
     this.politica = politica;
@@ -54,11 +54,11 @@ public final class ProcessarSolicitacoesService implements ProcessarSolicitacoes
 
   private List<SolicitacaoAtivacao> reservarLote() {
     var agora = clock.instant();
-    return repository.bloquearPendentes(agora, tamanhoLote).stream()
+    return solicitacaoAdapter.bloquearPendentes(agora, tamanhoLote).stream()
         .map(
             s -> {
               s.iniciarProcessamento(agora);
-              return repository.atualizar(s);
+              return solicitacaoAdapter.atualizar(s);
             })
         .toList();
   }
@@ -72,7 +72,7 @@ public final class ProcessarSolicitacoesService implements ProcessarSolicitacoes
       case SemConfirmacao(var motivo) -> retentar(solicitacao, motivo, null);
     }
     try {
-      transacao.executar(() -> repository.atualizar(solicitacao));
+      transacao.executar(() -> solicitacaoAdapter.atualizar(solicitacao));
     } catch (ConflitoDeVersaoException e) {
       // A reconciliação já mexeu nesta solicitação; o estado dela prevalece e a próxima
       // tentativa repete com a mesma chave de idempotência.

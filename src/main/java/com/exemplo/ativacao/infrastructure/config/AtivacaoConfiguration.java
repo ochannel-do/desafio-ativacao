@@ -33,8 +33,8 @@ public class AtivacaoConfiguration {
   }
 
   @Bean
-  SolicitacaoRepository solicitacaoRepository(SolicitacaoJpaRepository repository) {
-    return new SolicitacaoRepositoryAdapter(repository);
+  SolicitacaoRepository solicitacaoRepository(SolicitacaoJpaRepository jpaRepository) {
+    return new SolicitacaoRepositoryAdapter(jpaRepository);
   }
 
   @Bean
@@ -44,18 +44,19 @@ public class AtivacaoConfiguration {
 
   @Bean
   RegistrarSolicitacaoUseCase registrarSolicitacaoUseCase(
-      SolicitacaoRepository repository,
+      SolicitacaoRepository solicitacaoAdapter,
       Clock clock,
       PlatformTransactionManager manager,
       ObservationRegistry registry) {
-    var service = new RegistrarSolicitacaoService(repository, clock, UUID::randomUUID);
+    var service = new RegistrarSolicitacaoService(solicitacaoAdapter, clock, UUID::randomUUID);
     return new RegistrarSolicitacaoObservado(
         new RegistrarSolicitacaoTransacional(service, new TransactionTemplate(manager)), registry);
   }
 
   @Bean
-  ConsultarSolicitacoesService consultarSolicitacoesService(SolicitacaoRepository repository) {
-    return new ConsultarSolicitacoesService(repository);
+  ConsultarSolicitacoesService consultarSolicitacoesService(
+      SolicitacaoRepository solicitacaoAdapter) {
+    return new ConsultarSolicitacoesService(solicitacaoAdapter);
   }
 
   @Bean
@@ -83,25 +84,30 @@ public class AtivacaoConfiguration {
 
   @Bean
   ProcessarSolicitacoesUseCase processarSolicitacoesUseCase(
-      SolicitacaoRepository repository,
+      SolicitacaoRepository solicitacaoAdapter,
       ProvedorAtivacao provedor,
       Transacao transacao,
       PoliticaDeRetentativa politica,
       Clock clock,
       ProcessamentoProperties props) {
     return new ProcessarSolicitacoesService(
-        repository, provedor, transacao, politica, clock, props.tamanhoLote());
+        solicitacaoAdapter, provedor, transacao, politica, clock, props.tamanhoLote());
   }
 
   @Bean
   ReconciliarSolicitacoesUseCase reconciliarSolicitacoesUseCase(
-      SolicitacaoRepository repository,
+      SolicitacaoRepository solicitacaoAdapter,
       Transacao transacao,
       PoliticaDeRetentativa politica,
       Clock clock,
       ProcessamentoProperties props) {
     return new ReconciliarSolicitacoesService(
-        repository, transacao, politica, clock, props.prazoProcessamento(), props.tamanhoLote());
+        solicitacaoAdapter,
+        transacao,
+        politica,
+        clock,
+        props.prazoProcessamento(),
+        props.tamanhoLote());
   }
 
   @Configuration

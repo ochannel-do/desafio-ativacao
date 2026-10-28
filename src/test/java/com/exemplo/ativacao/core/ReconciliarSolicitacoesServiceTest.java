@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 
 class ReconciliarSolicitacoesServiceTest {
   final Instant agora = Instant.parse("2026-10-26T14:00:00Z");
-  final RepositorioEmMemoria repository = new RepositorioEmMemoria();
+  final RepositorioEmMemoria solicitacaoAdapter = new RepositorioEmMemoria();
   final Transacao transacao =
       new Transacao() {
         public <T> T executar(Supplier<T> trabalho) {
@@ -25,7 +25,7 @@ class ReconciliarSolicitacoesServiceTest {
       new PoliticaDeRetentativa(2, Duration.ofSeconds(1), Duration.ofSeconds(10), () -> 0);
   final ReconciliarSolicitacoesService service =
       new ReconciliarSolicitacoesService(
-          repository,
+          solicitacaoAdapter,
           transacao,
           politica,
           Clock.fixed(agora, ZoneOffset.UTC),
@@ -40,7 +40,7 @@ class ReconciliarSolicitacoesServiceTest {
       if (i > 0) s.devolverParaFila(desde, desde, "x");
       s.iniciarProcessamento(desde);
     }
-    return repository.salvar(s);
+    return solicitacaoAdapter.salvar(s);
   }
 
   @Test
@@ -48,15 +48,15 @@ class ReconciliarSolicitacoesServiceTest {
     var presa = processandoDesde(agora.minusSeconds(61), 1);
     var recente = processandoDesde(agora.minusSeconds(10), 1);
     assertThat(service.reconciliar()).isEqualTo(1);
-    assertThat(repository.atual(presa.id()).status()).isEqualTo(PENDING);
-    assertThat(repository.atual(presa.id()).proximaTentativaEm()).isEqualTo(agora);
-    assertThat(repository.atual(recente.id()).status()).isEqualTo(PROCESSING);
+    assertThat(solicitacaoAdapter.atual(presa.id()).status()).isEqualTo(PENDING);
+    assertThat(solicitacaoAdapter.atual(presa.id()).proximaTentativaEm()).isEqualTo(agora);
+    assertThat(solicitacaoAdapter.atual(recente.id()).status()).isEqualTo(PROCESSING);
   }
 
   @Test
   void presaSemTentativasRestantesFalha() {
     var presa = processandoDesde(agora.minusSeconds(120), 2);
     service.reconciliar();
-    assertThat(repository.atual(presa.id()).status()).isEqualTo(FAILED);
+    assertThat(solicitacaoAdapter.atual(presa.id()).status()).isEqualTo(FAILED);
   }
 }

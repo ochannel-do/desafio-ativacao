@@ -13,13 +13,13 @@ import java.util.function.Supplier;
  * uma janela em que duas requisições simultâneas passam pela consulta e as duas inserem.
  */
 public final class RegistrarSolicitacaoService implements RegistrarSolicitacaoUseCase {
-  private final SolicitacaoRepository repository;
+  private final SolicitacaoRepository solicitacaoAdapter;
   private final Clock clock;
   private final Supplier<UUID> ids;
 
   public RegistrarSolicitacaoService(
-      SolicitacaoRepository repository, Clock clock, Supplier<UUID> ids) {
-    this.repository = repository;
+      SolicitacaoRepository solicitacaoAdapter, Clock clock, Supplier<UUID> ids) {
+    this.solicitacaoAdapter = solicitacaoAdapter;
     this.clock = clock;
     this.ids = ids;
   }
@@ -35,9 +35,9 @@ public final class RegistrarSolicitacaoService implements RegistrarSolicitacaoUs
             comando.productCode(),
             comando.correlationId(),
             clock.instant());
-    if (repository.inserirSeAusente(nova)) return new Criada(SolicitacaoView.de(nova));
+    if (solicitacaoAdapter.inserirSeAusente(nova)) return new Criada(SolicitacaoView.de(nova));
     var existente =
-        repository
+        solicitacaoAdapter
             .porExternalId(comando.externalId())
             .orElseThrow(() -> new IllegalStateException("externalId em conflito sem registro"));
     return existente.mesmoConteudo(

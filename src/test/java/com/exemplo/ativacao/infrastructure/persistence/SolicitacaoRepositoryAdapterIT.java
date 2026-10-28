@@ -26,7 +26,7 @@ import org.springframework.test.context.ActiveProfiles;
 @ActiveProfiles("test")
 @Import(PostgresTestConfiguration.class)
 class SolicitacaoRepositoryAdapterIT {
-  @Autowired SolicitacaoRepository repository;
+  @Autowired SolicitacaoRepository solicitacaoAdapter;
   @Autowired JdbcTemplate jdbc;
   @Autowired Transacao transacao;
   @Autowired ReconciliarSolicitacoesUseCase reconciliar;
@@ -51,21 +51,21 @@ class SolicitacaoRepositoryAdapterIT {
   @Test
   void insereUmaVezPorExternalIdEPreservaMicrossegundos() {
     var primeira = nova("EXT-1", "CUST-1", t0);
-    assertThat(repository.inserirSeAusente(primeira)).isTrue();
-    assertThat(repository.inserirSeAusente(nova("EXT-1", "CUST-2", t0))).isFalse();
+    assertThat(solicitacaoAdapter.inserirSeAusente(primeira)).isTrue();
+    assertThat(solicitacaoAdapter.inserirSeAusente(nova("EXT-1", "CUST-2", t0))).isFalse();
     assertThat(jdbc.queryForObject("select count(*) from activation_request", Long.class))
         .isEqualTo(1);
-    var lida = repository.porExternalId("EXT-1").orElseThrow();
+    var lida = solicitacaoAdapter.porExternalId("EXT-1").orElseThrow();
     assertThat(lida.id()).isEqualTo(primeira.id());
     assertThat(lida.customerId()).isEqualTo("CUST-1");
     assertThat(lida.createdAt()).isEqualTo(t0);
-    assertThat(repository.porId(primeira.id())).isPresent();
-    assertThat(repository.porId(UUID.randomUUID())).isEmpty();
+    assertThat(solicitacaoAdapter.porId(primeira.id())).isPresent();
+    assertThat(solicitacaoAdapter.porId(UUID.randomUUID())).isEmpty();
   }
 
   @Test
   void bancoRejeitaDuplicidadeMesmoForaDaAplicacao() {
-    repository.inserirSeAusente(nova("EXT-1", "CUST-1", t0));
+    solicitacaoAdapter.inserirSeAusente(nova("EXT-1", "CUST-1", t0));
     assertThatThrownBy(
             () ->
                 jdbc.update(
@@ -79,18 +79,18 @@ class SolicitacaoRepositoryAdapterIT {
   @Test
   void atualizacaoComVersaoDesatualizadaFalha() {
     var original = nova("EXT-1", "CUST-1", t0);
-    repository.inserirSeAusente(original);
-    var leituraA = repository.porId(original.id()).orElseThrow();
-    var leituraB = repository.porId(original.id()).orElseThrow();
+    solicitacaoAdapter.inserirSeAusente(original);
+    var leituraA = solicitacaoAdapter.porId(original.id()).orElseThrow();
+    var leituraB = solicitacaoAdapter.porId(original.id()).orElseThrow();
 
     leituraA.iniciarProcessamento(t0.plusSeconds(1));
-    repository.atualizar(leituraA);
+    solicitacaoAdapter.atualizar(leituraA);
 
     leituraB.iniciarProcessamento(t0.plusSeconds(2));
-    assertThatThrownBy(() -> repository.atualizar(leituraB))
+    assertThatThrownBy(() -> solicitacaoAdapter.atualizar(leituraB))
         .isInstanceOf(ConflitoDeVersaoException.class);
 
-    var atual = repository.porId(original.id()).orElseThrow();
+    var atual = solicitacaoAdapter.porId(original.id()).orElseThrow();
     assertThat(atual.status()).isEqualTo(PROCESSING);
     assertThat(atual.tentativas()).isEqualTo(1);
     assertThat(atual.versao()).isEqualTo(1);
@@ -100,32 +100,34 @@ class SolicitacaoRepositoryAdapterIT {
   @Test
   void listaPorFiltroDoMaisRecenteParaOMaisAntigo() {
     for (int i = 0; i < 5; i++)
-      repository.inserirSeAusente(
+      solicitacaoAdapter.inserirSeAusente(
           nova("EXT-" + i, i % 2 == 0 ? "CUST-A" : "CUST-B", t0.plus(i, ChronoUnit.MINUTES)));
-    var processando = repository.porExternalId("EXT-4").orElseThrow();
+    var processando = solicitacaoAdapter.porExternalId("EXT-4").orElseThrow();
     processando.iniciarProcessamento(t0.plusSeconds(600));
-    repository.atualizar(processando);
+    solicitacaoAdapter.atualizar(processando);
 
-    var clienteA = repository.listar(new Filtro("sistema-a", null, "CUST-A", 0, 2));
+    var clienteA = solicitacaoAdapter.listar(new Filtro("sistema-a", null, "CUST-A", 0, 2));
     assertThat(clienteA.total()).isEqualTo(3);
     assertThat(clienteA.itens())
         .extracting(SolicitacaoAtivacao::externalId)
         .containsExactly("EXT-4", "EXT-2");
-    assertThat(repository.listar(new Filtro("sistema-a", null, "CUST-A", 1, 2)).itens())
+    assertThat(solicitacaoAdapter.listar(new Filtro("sistema-a", null, "CUST-A", 1, 2)).itens())
         .extracting(SolicitacaoAtivacao::externalId)
         .containsExactly("EXT-0");
 
-    var pendentesA = repository.listar(new Filtro("sistema-a", PENDING, "CUST-A", 0, 10));
+    var pendentesA = solicitacaoAdapter.listar(new Filtro("sistema-a", PENDING, "CUST-A", 0, 10));
     assertThat(pendentesA.itens())
         .extracting(SolicitacaoAtivacao::externalId)
         .containsExactly("EXT-2", "EXT-0");
-    assertThat(repository.listar(new Filtro("sistema-a", null, null, 0, 10)).total()).isEqualTo(5);
-    assertThat(repository.listar(new Filtro("sistema-b", null, null, 0, 10)).total()).isZero();
+    assertThat(solicitacaoAdapter.listar(new Filtro("sistema-a", null, null, 0, 10)).total())
+        .isEqualTo(5);
+    assertThat(solicitacaoAdapter.listar(new Filtro("sistema-b", null, null, 0, 10)).total())
+        .isZero();
   }
 
   @Test
   void instanciasConcorrentesNaoPegamAMesmaSolicitacao() throws Exception {
-    for (int i = 0; i < 3; i++) repository.inserirSeAusente(nova("EXT-" + i, "C", t0));
+    for (int i = 0; i < 3; i++) solicitacaoAdapter.inserirSeAusente(nova("EXT-" + i, "C", t0));
     var primeiraReservou = new CountDownLatch(1);
     var liberarPrimeira = new CountDownLatch(1);
     try (var executor = Executors.newFixedThreadPool(2)) {
@@ -134,7 +136,7 @@ class SolicitacaoRepositoryAdapterIT {
               () ->
                   transacao.executar(
                       () -> {
-                        var lote = repository.bloquearPendentes(t0.plusSeconds(1), 2);
+                        var lote = solicitacaoAdapter.bloquearPendentes(t0.plusSeconds(1), 2);
                         primeiraReservou.countDown();
                         aguardar(liberarPrimeira);
                         return lote;
@@ -145,7 +147,8 @@ class SolicitacaoRepositoryAdapterIT {
           executor
               .submit(
                   () ->
-                      transacao.executar(() -> repository.bloquearPendentes(t0.plusSeconds(1), 10)))
+                      transacao.executar(
+                          () -> solicitacaoAdapter.bloquearPendentes(t0.plusSeconds(1), 10)))
               .get(5, TimeUnit.SECONDS);
       liberarPrimeira.countDown();
       assertThat(primeira.get(10, TimeUnit.SECONDS)).hasSize(2);
@@ -157,23 +160,23 @@ class SolicitacaoRepositoryAdapterIT {
 
   @Test
   void bloquearExigeTransacaoDoChamador() {
-    assertThatThrownBy(() -> repository.bloquearPendentes(t0, 1))
+    assertThatThrownBy(() -> solicitacaoAdapter.bloquearPendentes(t0, 1))
         .isInstanceOf(org.springframework.transaction.IllegalTransactionStateException.class);
   }
 
   @Test
   void reconciliacaoDevolvePresaParaAFila() {
     var presa = nova("EXT-PRESA", "C", t0);
-    repository.inserirSeAusente(presa);
-    var lida = repository.porId(presa.id()).orElseThrow();
+    solicitacaoAdapter.inserirSeAusente(presa);
+    var lida = solicitacaoAdapter.porId(presa.id()).orElseThrow();
     lida.iniciarProcessamento(t0);
-    repository.atualizar(lida);
+    solicitacaoAdapter.atualizar(lida);
     jdbc.update(
         "update activation_request set updated_at = now() - interval '10 minutes' where id = ?",
         presa.id());
 
     assertThat(reconciliar.reconciliar()).isEqualTo(1);
-    var atual = repository.porId(presa.id()).orElseThrow();
+    var atual = solicitacaoAdapter.porId(presa.id()).orElseThrow();
     assertThat(atual.status()).isEqualTo(PENDING);
     assertThat(atual.ultimoErro()).contains("interrompido");
   }

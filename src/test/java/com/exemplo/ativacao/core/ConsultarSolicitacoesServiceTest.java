@@ -11,10 +11,10 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class ConsultarSolicitacoesServiceTest {
-  final RepositorioEmMemoria repository = new RepositorioEmMemoria();
-  final ConsultarSolicitacoesService service = new ConsultarSolicitacoesService(repository);
+  final RepositorioEmMemoria solicitacaoAdapter = new RepositorioEmMemoria();
+  final ConsultarSolicitacoesService service = new ConsultarSolicitacoesService(solicitacaoAdapter);
   final SolicitacaoAtivacao deA =
-      repository.salvar(
+      solicitacaoAdapter.salvar(
           SolicitacaoAtivacao.nova(
               UUID.randomUUID(), "sistema-a", "EXT-1", "C", "P", null, Instant.EPOCH));
 

@@ -17,15 +17,16 @@ import org.junit.jupiter.api.Test;
 class RegistrarSolicitacaoServiceTest {
   final Instant agora = Instant.parse("2026-10-26T14:03:11Z");
   final UUID id = UUID.fromString("0b7f3c1e-5d2a-4c4e-9a51-2f8d7b1e6c90");
-  final SolicitacaoRepository repository = mock(SolicitacaoRepository.class);
+  final SolicitacaoRepository solicitacaoAdapter = mock(SolicitacaoRepository.class);
   final RegistrarSolicitacaoService service =
-      new RegistrarSolicitacaoService(repository, Clock.fixed(agora, ZoneOffset.UTC), () -> id);
+      new RegistrarSolicitacaoService(
+          solicitacaoAdapter, Clock.fixed(agora, ZoneOffset.UTC), () -> id);
   final Comando comando =
       new Comando("sistema-a", "EXT-12345", "CUST-10001", "INTERNET-500", "trace-1");
 
   @Test
   void criaQuandoExternalIdEhNovo() {
-    when(repository.inserirSeAusente(any())).thenReturn(true);
+    when(solicitacaoAdapter.inserirSeAusente(any())).thenReturn(true);
     var resultado = service.executar(comando);
     assertThat(resultado)
         .isInstanceOfSatisfying(
@@ -36,7 +37,7 @@ class RegistrarSolicitacaoServiceTest {
               assertThat(c.solicitacao().createdAt()).isEqualTo(agora);
               assertThat(c.solicitacao().tentativas()).isZero();
             });
-    verify(repository, never()).porExternalId(any());
+    verify(solicitacaoAdapter, never()).porExternalId(any());
   }
 
   @Test
@@ -50,8 +51,8 @@ class RegistrarSolicitacaoServiceTest {
             "INTERNET-500",
             null,
             agora.minusSeconds(60));
-    when(repository.inserirSeAusente(any())).thenReturn(false);
-    when(repository.porExternalId("EXT-12345")).thenReturn(Optional.of(original));
+    when(solicitacaoAdapter.inserirSeAusente(any())).thenReturn(false);
+    when(solicitacaoAdapter.porExternalId("EXT-12345")).thenReturn(Optional.of(original));
     assertThat(service.executar(comando))
         .isInstanceOfSatisfying(
             Repetida.class, r -> assertThat(r.solicitacao().id()).isEqualTo(original.id()));
@@ -62,8 +63,8 @@ class RegistrarSolicitacaoServiceTest {
     var original =
         SolicitacaoAtivacao.nova(
             UUID.randomUUID(), "sistema-a", "EXT-12345", "CUST-10001", "TV-100", null, agora);
-    when(repository.inserirSeAusente(any())).thenReturn(false);
-    when(repository.porExternalId("EXT-12345")).thenReturn(Optional.of(original));
+    when(solicitacaoAdapter.inserirSeAusente(any())).thenReturn(false);
+    when(solicitacaoAdapter.porExternalId("EXT-12345")).thenReturn(Optional.of(original));
     assertThat(service.executar(comando)).isEqualTo(new Conflitante("EXT-12345"));
   }
 
@@ -72,8 +73,8 @@ class RegistrarSolicitacaoServiceTest {
     var deOutro =
         SolicitacaoAtivacao.nova(
             UUID.randomUUID(), "sistema-b", "EXT-12345", "CUST-10001", "INTERNET-500", null, agora);
-    when(repository.inserirSeAusente(any())).thenReturn(false);
-    when(repository.porExternalId("EXT-12345")).thenReturn(Optional.of(deOutro));
+    when(solicitacaoAdapter.inserirSeAusente(any())).thenReturn(false);
+    when(solicitacaoAdapter.porExternalId("EXT-12345")).thenReturn(Optional.of(deOutro));
     assertThat(service.executar(comando)).isEqualTo(new Conflitante("EXT-12345"));
   }
 
@@ -82,6 +83,6 @@ class RegistrarSolicitacaoServiceTest {
     assertThatThrownBy(() -> service.executar(new Comando("sistema-a", "", "C", "P", null)))
         .isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(() -> service.executar(null)).isInstanceOf(IllegalArgumentException.class);
-    verifyNoInteractions(repository);
+    verifyNoInteractions(solicitacaoAdapter);
   }
 }

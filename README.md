@@ -2,7 +2,7 @@
 
 Registra solicitações de ativação de produtos de clientes, consulta o status e ativa cada produto em um provedor externo, com proteção contra duplicidade, processamento assíncrono resiliente e API protegida por OAuth 2.0/JWT.
 
-Java 21 · Spring Boot 3.5 · Spring MVC · Spring Data JPA/Hibernate · PostgreSQL · Flyway · Resilience4j · Spring Security (Resource Server) · Micrometer/OpenTelemetry · JUnit 5, Mockito, Testcontainers, WireMock, ArchUnit · Docker.
+Java 21 · Spring Boot 3.5 · Apache Kafka (KRaft) · Spring MVC · Spring Data JPA/Hibernate · PostgreSQL · Flyway · Resilience4j · Spring Security (Resource Server) · Micrometer/OpenTelemetry · JUnit 5, Mockito, Testcontainers, WireMock, ArchUnit · Docker.
 
 ## Sumário
 
@@ -26,7 +26,7 @@ Requisitos: JDK 21 e Docker. O Maven vem pelo wrapper.
 ./mvnw verify            # formatação, testes unitários e de integração (PostgreSQL real via Testcontainers)
 ```
 
-Tudo em contêiner (aplicação, PostgreSQL, mock do provedor e Jaeger):
+Tudo em contêiner (aplicação, Kafka, PostgreSQL, mock do provedor e Jaeger):
 
 ```sh
 docker compose --profile app up --build -d
@@ -35,7 +35,7 @@ docker compose --profile app up --build -d
 Ou só as dependências, com a aplicação na IDE ou no terminal:
 
 ```sh
-docker compose up -d postgres provider-mock jaeger
+docker compose up -d kafka postgres provider-mock jaeger
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
@@ -94,20 +94,24 @@ Arquitetura hexagonal enxuta, num único módulo. O `core` é Java puro e as reg
 ```
 core/domain        SolicitacaoAtivacao (agregado), StatusSolicitacao, TransicaoInvalidaException
 core/application   portas de entrada (casos de uso) e de saída (repositório, provedor, transação)
-                   serviços: registrar, consultar, processar lote, reconciliar; política de retentativa
+                   serviços: registrar, consultar, processar mensagem, reconciliar; política de retentativa
 infrastructure     web (controller, DTOs, Problem Details, filtros), persistence (JPA), integration
-                   (cliente HTTP + circuit breaker), security, scheduling, transaction, observability, config
+                   (cliente HTTP + circuit breaker), messaging (Kafka), security, scheduling, transaction, observability, config
 ```
 
 ```
-POST ──► registrar ──► INSERT ... ON CONFLICT (PENDING) ──► 201
-                                    │
-            agendador (cada instância) ▼
-   tx1: SELECT ... FOR UPDATE SKIP LOCKED → PROCESSING, commit
-   sem tx: POST /provider/v1/activate (Idempotency-Key = id)
-   tx2: COMPLETED | FAILED | PENDING com próxima tentativa      (@Version protege a gravação)
+POST → transação: solicitação PENDING + outbox → 201
+                              ↓
+publicador: reserva outbox → commit → Kafka → confirma publicação no banco
+                              ↓
+consumidor: transação: inbox + solicitação PROCESSING → commit
+            HTTP ao provedor sem transação (Idempotency-Key = id)
+            transação: COMPLETED | FAILED | PENDING + próxima outbox; conclui inbox
+            confirma offset Kafka após commit
 
-   reconciliação: PROCESSING há mais de 60 s → PENDING (ou FAILED se esgotou)
+reconciliação: PROCESSING há mais de 60 s → PENDING + nova outbox (ou FAILED)
+              encerra inbox antiga como RECOVERED na mesma transação
+
 ```
 
 Estados e transições (no domínio, sem setters):
@@ -123,7 +127,7 @@ PENDING ──► PROCESSING ──► COMPLETED
 
 ## Decisões técnicas
 
-Os registros completos estão em [docs/adr](docs/adr).
+Os registros completos estão em [docs/adr](docs/adr). A evolução para Kafka está no [ADR 005](docs/adr/005-kafka-outbox-inbox.md), que substitui o mecanismo de disparo do ADR 003.
 
 ### Duplicidade (item 3) — [ADR 002](docs/adr/002-duplicidade.md)
 
@@ -144,7 +148,7 @@ Vale para qualquer número de instâncias, porque a regra está na constraint e 
 
 **Assíncrono.** O `POST` grava a solicitação como `PENDING` e responde em milissegundos. Se esperasse o provedor (400 ms normalmente, 3 s no cenário de lentidão), a latência e a disponibilidade da API ficariam presas às dele, e threads do Tomcat ficariam bloqueadas justamente quando ele está lento.
 
-**Transação x chamada remota.** Nenhuma chamada HTTP acontece com transação aberta. A linha `PENDING` gravada no mesmo commit do `POST` é a intenção durável de chamar o provedor (o padrão outbox, usando a própria tabela como fila). Se a aplicação cair logo depois do commit, a linha continua lá e qualquer instância a processa. O worker trabalha em três passos: reserva o lote com `FOR UPDATE SKIP LOCKED` e marca `PROCESSING` (commit), chama o provedor sem transação, grava o desfecho em outra transação.
+**Transação x chamada remota.** Nenhuma chamada HTTP acontece com transação aberta. A solicitação `PENDING` e uma linha de `activation_outbox` são gravadas no mesmo commit do `POST`. O publicador envia ao Kafka fora da transação e registra a publicação após a confirmação do broker. O consumidor reserva a solicitação e registra `activation_inbox` em uma transação curta, chama o provedor sem transação e grava o desfecho, a conclusão da inbox e a próxima outbox (se houver retentativa) em outra transação. O offset só avança depois desse commit.
 
 **Timeout é ambíguo.** O provedor pode ter ativado e a resposta se perdeu. Toda chamada envia `Idempotency-Key` igual ao `id` da solicitação, estável entre tentativas, então repetir não ativa duas vezes (desde que o provedor honre a chave, ponto a combinar no contrato com ele).
 
@@ -165,7 +169,7 @@ Vale para qualquer número de instâncias, porque a regra está na constraint e 
 
 **Backoff.** Exponencial a partir de 2 s, teto de 5 min, com jitter (espera sorteada entre metade e o valor cheio) para que solicitações e instâncias não voltem todas ao mesmo tempo depois de uma queda.
 
-**Circuit breaker (Resilience4j).** Janela das últimas 20 chamadas, abre com 50% de falhas ou 80% de chamadas acima de 2 s, fica aberto 30 s e testa com 3 chamadas em meia-abertura. Só falhas do provedor contam; uma recusa 4xx é uma resposta válida. Usei apenas o circuit breaker da biblioteca: o retry fica na fila do banco, porque um retry em memória seguraria a thread e se perderia se a instância caísse.
+**Circuit breaker (Resilience4j).** Janela das últimas 20 chamadas, abre com 50% de falhas ou 80% de chamadas acima de 2 s, fica aberto 30 s e testa com 3 chamadas em meia-abertura. Só falhas do provedor contam; uma recusa 4xx é uma resposta válida. Usei apenas o circuit breaker da biblioteca: o agendamento da próxima tentativa fica na outbox do banco, porque um retry em memória seguraria a thread e se perderia se a instância caísse.
 
 **Reconciliação.** A cada 30 s, solicitações em `PROCESSING` há mais de 60 s (bem acima de conexão + leitura) voltam para `PENDING`, ou viram `FAILED` se esgotaram as tentativas. Isso cobre a instância que caiu entre a chamada e a gravação do desfecho.
 
@@ -191,7 +195,7 @@ Implementado como Resource Server do Spring Security.
 
 ## Estratégia de testes
 
-83 testes, todos executados por `./mvnw verify` (o CI roda o mesmo comando).
+94 testes, todos executados por `./mvnw verify` (o CI roda o mesmo comando).
 
 | Nível | O quê | Ferramentas |
 | --- | --- | --- |
@@ -199,10 +203,10 @@ Implementado como Resource Server do Spring Security.
 | Fatia web | Contrato HTTP: 201/200/409/400/404/413, Problem Details, validação de parâmetros, 401 sem token, 403 por escopo | `@WebMvcTest`, MockMvc, spring-security-test |
 | Integração do cliente HTTP | 2xx, 4xx, 5xx, 401, 429/503 com Retry-After, timeout, conexão derrubada, circuito abrindo e parando de chamar | WireMock |
 | Integração com banco real | Unicidade, `ON CONFLICT`, lock otimista, filtros e paginação, `SKIP LOCKED` entre duas transações, reconciliação | Testcontainers (PostgreSQL 17) |
-| Ponta a ponta | 16 POSTs simultâneos geram um registro; POST até `COMPLETED`/`FAILED` com o agendador real; 503 → timeout → sucesso com a mesma chave de idempotência; JWT expirado, de outro emissor, de outra audiência ou adulterado; isolamento entre consumidores | `@SpringBootTest`, Testcontainers, WireMock, Awaitility |
+| Ponta a ponta | 16 POSTs simultâneos geram um registro; POST até `COMPLETED`/`FAILED` passando pela outbox, Kafka e inbox; 503 → timeout → sucesso com a mesma chave de idempotência; JWT expirado, de outro emissor, de outra audiência ou adulterado; isolamento entre consumidores | `@SpringBootTest`, Testcontainers, WireMock, Awaitility |
 | Arquitetura | `core` sem Spring/JPA/HTTP, domínio sem depender de aplicação, web sem acessar persistência, sem ciclos | ArchUnit |
 
-Unitário é tudo que é regra e cabe em memória: roda em milissegundos e cobre as combinações. Integração fica para o que só o ambiente real mostra: constraint, lock, isolamento de transação, serialização HTTP, validação de JWT. Nada usa H2, porque o comportamento de concorrência que importa aqui é o do PostgreSQL.
+Unitário é tudo que é regra e cabe em memória: roda em milissegundos e cobre as combinações. Integração fica para o que só o ambiente real mostra: constraint, lock, isolamento de transação, serialização HTTP, validação de JWT. Nada usa H2, porque o comportamento de concorrência que importa aqui é o do PostgreSQL. O fluxo Kafka também usa um broker real via Testcontainers; cobre republicação sem repetir HTTP, envelopes inválidos na DLT e recuperação após indisponibilidade do broker.
 
 ## Cenário de análise
 
@@ -236,16 +240,16 @@ Unitário é tudo que é regra e cabe em memória: roda em milissegundos e cobre
 
 ## Microsserviços e cloud
 
-- **Várias instâncias:** a regra de duplicidade está na constraint do banco e o trabalho da fila é repartido por `FOR UPDATE SKIP LOCKED`, então N réplicas funcionam sem coordenação extra, eleição de líder ou lock distribuído. A reconciliação também usa `SKIP LOCKED`. O estado do circuit breaker é por instância, o que é aceitável: cada réplica abre o próprio circuito ao ver o provedor falhar.
+- **Várias instâncias:** a regra de duplicidade está na constraint do banco e a publicação da outbox usa `FOR UPDATE SKIP LOCKED` e o Kafka distribui as partições entre consumidores do mesmo grupo. A reserva da solicitação, a versão e a inbox protegem contra processamento repetido. A reconciliação também usa `SKIP LOCKED`. O estado do circuit breaker é por instância, o que é aceitável: cada réplica abre o próprio circuito ao ver o provedor falhar.
 - **Configurações e segredos:** variáveis de ambiente para configuração; segredos no cofre gerenciado, montados via External Secrets/CSI driver, com rotação sem rebuild de imagem.
 - **Avisar outros serviços:** quando a solicitação chega a `COMPLETED` ou `FAILED`, gravar um evento numa tabela `outbox_event` na mesma transação do desfecho e publicá-lo num tópico (Kafka, SNS/SQS, Service Bus) por um relay ou CDC (Debezium). Assim o evento nunca se perde nem é publicado sem o estado ter mudado. Consumidores devem ser idempotentes pelo `id` da solicitação.
-- **CI/CD:** o GitHub Actions deste repositório já roda `./mvnw verify` (com Testcontainers), constrói a imagem e varre segredos (gitleaks) e configuração (Trivy). Até o deploy, eu acrescentaria: varredura de vulnerabilidades da imagem, publicação no registry com tag do commit, deploy automático em homologação via GitOps (Argo CD), smoke test, e promoção para produção com aprovação e canário.
+- **CI/CD:** o GitHub Actions deste repositório já roda `./mvnw verify` (com Testcontainers), constrói a imagem e varre segredos (gitleaks) e configuração (Trivy). A esteira de entrega acrescenta análise da imagem, publicação no GHCR e atualização do digest na branch `deploy`. Argo CD acompanha os manifests de homologação. A preparação e as verificações do ambiente estão em [k8s/README.md](k8s/README.md).
 
 ## Pontos pendentes
 
 - **Limite de taxa:** implementado só o limite de corpo. O rate limit por consumidor ficaria no API Gateway ou no ingress (por `client_id`), que é onde ele protege também contra tráfego que nem chega à aplicação. Dentro do serviço daria para usar o `RateLimiter` do Resilience4j por consumidor.
 - **Contrato do provedor:** `POST /provider/v1/activate` foi modelado com corpo JSON e `Idempotency-Key`. O formato real da resposta, o suporte à chave de idempotência e o significado de um 409 do provedor precisam ser confirmados com ele.
-- **Paralelismo do worker:** cada instância processa o lote em sequência; um provedor lento atrasa o lote da instância. Com volume alto, processaria o lote em virtual threads com um bulkhead limitando chamadas simultâneas.
+- **Paralelismo do consumidor:** inicialmente há uma thread por instância, com `max.poll.records=1`. O tópico possui três partições; outras instâncias do mesmo grupo podem repartir o consumo. Calibrar concorrência e limites conforme a capacidade do provedor.
 - **Métrica de solicitações por status:** existe a contagem de desfechos do provedor; um gauge por status (consulta agregada periódica) e a idade da fila ficaram de fora.
 - **Evento de ativação concluída:** descrito acima, não implementado.
 
@@ -261,3 +265,14 @@ Unitário é tudo que é regra e cabe em memória: roda em milissegundos e cobre
 ## Uso de IA
 
 Este projeto foi desenvolvido com o Claude (Anthropic) como assistente. Ele foi usado para adaptar meu projeto base (Java 25 e Spring Boot 4) para Java 21 e Spring Boot 3.5, escrever boa parte do código de produção e de teste a partir de um plano que defini, revisar casos de borda (timeout ambíguo, `ON CONFLICT` sob concorrência, `SKIP LOCKED`) e redigir este README e os ADRs. Revisei o resultado, executei a suíte completa e as decisões registradas aqui são as que eu defendo na conversa técnica.
+
+## Kafka, inbox e entrega no home lab
+
+Veja o [ADR 005](docs/adr/005-kafka-outbox-inbox.md) e o [guia de deploy](k8s/README.md).
+
+- A outbox usa `eventId` estável na republicação e novo evento a cada tentativa de negócio.
+- A inbox deduplica por consumidor lógico e `eventId`; uma reserva em andamento não é tratada como trabalho concluído.
+- Falhas técnicas transitórias não confirmam o offset. Envelopes inválidos vão à DLT, cuja publicação precisa ser confirmada antes de avançar.
+- Kafka fora do ar não perde solicitações: a API continua registrando a intenção no PostgreSQL.
+- O método legado `processarLote` foi preservado como contrato, mas não é mais agendado. O fluxo normal usa `ProcessarMensagemUseCase`.
+- No home lab, WireMock é um serviço interno de homologação. Ele simula respostas HTTP; os stubs atuais não implementam um registro persistente de idempotência do provedor.

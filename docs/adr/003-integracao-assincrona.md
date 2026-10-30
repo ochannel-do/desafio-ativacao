@@ -1,6 +1,6 @@
 # ADR 003 — Integração assíncrona com o provedor
 
-Status: aceita. Data: 2026-10-28.
+Status: parcialmente substituída pelo [ADR 005](005-kafka-outbox-inbox.md): Kafka, outbox e inbox substituem a tabela de solicitações como fila. Mantidas as regras do provedor, retentativa e transações. Data: 2026-10-28.
 
 **Contexto.** O provedor responde em 400 ms normalmente e pode chegar a 3 s ou cair. A solicitação gravada precisa chegar a ele mesmo se a aplicação cair entre o commit e a chamada, e um timeout não diz se o produto foi ativado.
 

@@ -1,0 +1,83 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: ativacao-hml
+  namespace: argocd
+spec:
+  sourceRepos:
+  - https://github.com/ochannel-do/desafio-ativacao.git
+  destinations:
+  - namespace: ativacao-hml
+    server: https://kubernetes.default.svc
+  namespaceResourceWhitelist:
+  - group: apps
+    kind: Deployment
+  - group: ''
+    kind: Service
+  - group: ''
+    kind: ConfigMap
+  - group: networking.k8s.io
+    kind: NetworkPolicy
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ativacao-hml
+  namespace: argocd
+spec:
+  project: ativacao-hml
+  source:
+    repoURL: https://github.com/ochannel-do/desafio-ativacao.git
+    targetRevision: deploy
+    path: k8s/overlays/hml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ativacao-hml
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+    - Prune=false
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: ativacao-kafka
+  namespace: argocd
+spec:
+  sourceRepos:
+  - https://github.com/ochannel-do/desafio-ativacao.git
+  destinations:
+  - namespace: messaging
+    server: https://kubernetes.default.svc
+  namespaceResourceWhitelist:
+  - group: apps
+    kind: StatefulSet
+  - group: ''
+    kind: Service
+  - group: ''
+    kind: ConfigMap
+  - group: networking.k8s.io
+    kind: NetworkPolicy
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ativacao-kafka
+  namespace: argocd
+spec:
+  project: ativacao-kafka
+  source:
+    repoURL: https://github.com/ochannel-do/desafio-ativacao.git
+    targetRevision: main
+    path: k8s/kafka
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: messaging
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+    - Prune=false

@@ -1,0 +1,101 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ativacao
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ativacao
+  template:
+    metadata:
+      labels:
+        app: ativacao
+      annotations:
+        prometheus.io/scrape: 'true'
+        prometheus.io/port: '8080'
+        prometheus.io/path: /actuator/prometheus
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 35
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: ativacao
+        image: ghcr.io/ochannel-do/desafio-ativacao:bootstrap
+        ports:
+        - name: http
+          containerPort: 8080
+        envFrom:
+        - configMapRef:
+            name: ativacao-config
+        - secretRef:
+            name: ativacao-config-secrets
+        resources:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+          limits:
+            cpu: '1'
+            memory: 768Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        startupProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: http
+          failureThreshold: 30
+          periodSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: http
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: http
+          periodSeconds: 10
+      volumes:
+      - name: tmp
+        emptyDir:
+          sizeLimit: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ativacao
+spec:
+  selector:
+    app: ativacao
+  ports:
+  - name: http
+    port: 80
+    targetPort: http
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ativacao-config
+data:
+  DB_URL: jdbc:postgresql://postgresql.databases-hml.svc.cluster.local:5432/ativacao_hml
+  KAFKA_BOOTSTRAP_SERVERS: kafka.messaging.svc.cluster.local:9092
+  KAFKA_TOPIC: ativacao.hml.solicitacoes.v1
+  KAFKA_GROUP: ativacao-hml-provedor-v1
+  KAFKA_PARTITIONS: '3'
+  KAFKA_REPLICATION_FACTOR: '1'
+  PROVIDER_BASE_URL: http://provider-mock:8080
+  OTLP_ENDPOINT: http://alloy.observabilidade.svc.cluster.local:4318/v1/traces
+  TRACE_SAMPLING: '1.0'

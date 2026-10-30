@@ -72,6 +72,8 @@ spec:
       - name: tmp
         emptyDir:
           sizeLimit: 128Mi
+      imagePullSecrets:
+      - name: ghcr-pull
 ---
 apiVersion: v1
 kind: Service

@@ -34,6 +34,7 @@ jobs:
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8
         with:
           version: v0.75.0
+          trivy-config: trivy.yaml
           image-ref: ghcr.io/ochannel-do/desafio-ativacao:sha-${{ github.sha }}
           scanners: vuln,secret
           severity: HIGH,CRITICAL

@@ -15,10 +15,21 @@
 
   <properties>
     <java.version>21</java.version>
+    <!-- Patches de segurança mantendo as linhas compatíveis com Boot 3.5. -->
+    <tomcat.version>10.1.61</tomcat.version>
+    <jackson-bom.version>2.21.8</jackson-bom.version>
+    <postgresql.version>42.7.14</postgresql.version>
     <archunit.version>1.4.2</archunit.version>
     <resilience4j.version>2.4.0</resilience4j.version>
     <wiremock.version>3.13.1</wiremock.version>
   </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency><groupId>at.yawk.lz4</groupId><artifactId>lz4-java</artifactId><version>1.12.1</version></dependency>
+      <dependency><groupId>org.xerial.snappy</groupId><artifactId>snappy-java</artifactId><version>1.1.10.12</version></dependency>
+    </dependencies>
+  </dependencyManagement>
 
   <dependencies>
     <dependency><groupId>org.springframework.kafka</groupId><artifactId>spring-kafka</artifactId></dependency>

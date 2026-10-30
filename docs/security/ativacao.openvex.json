@@ -1,0 +1,45 @@
+{
+  "@context": "https://openvex.dev/ns/v0.2.0",
+  "@id": "https://github.com/ochannel-do/desafio-ativacao/blob/main/docs/security/ativacao.openvex.json",
+  "author": "Projeto desafio-ativacao",
+  "timestamp": "2026-10-30T21:00:00Z",
+  "version": 1,
+  "statements": [
+    {
+      "vulnerability": {
+        "name": "CVE-2026-47884"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/desafio-ativacao?repository_url=ghcr.io%2Fochannel-do%2Fdesafio-ativacao",
+          "subcomponents": [
+            {
+              "@id": "pkg:maven/org.springframework/spring-webmvc@6.2.19"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Esta aplicação só expõe controllers REST, não usa XsltView, resolução de nomes de views nem mapping /** com renderização. ArchitectureTest impede dependências de views e controllers MVC sem revisão."
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-47890"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/desafio-ativacao?repository_url=ghcr.io%2Fochannel-do%2Fdesafio-ativacao",
+          "subcomponents": [
+            {
+              "@id": "pkg:maven/org.springframework/spring-webmvc@6.2.19"
+            }
+          ]
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "Esta aplicação não transmite fragmentos de views por SSE. ArchitectureTest impede views, SseEmitter e ResponseBodyEmitter sem revisão."
+    }
+  ]
+}

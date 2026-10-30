@@ -1,0 +1,3 @@
+# Declarações limitadas a esta aplicação; justificativa em docs/security/README.md.
+vex:
+  - docs/security/ativacao.openvex.json

@@ -195,7 +195,7 @@ Implementado como Resource Server do Spring Security.
 
 ## Estratégia de testes
 
-94 testes, todos executados por `./mvnw verify` (o CI roda o mesmo comando).
+95 testes, todos executados por `./mvnw verify` (o CI roda o mesmo comando).
 
 | Nível | O quê | Ferramentas |
 | --- | --- | --- |

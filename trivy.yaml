@@ -1,3 +1,2 @@
-# Declarações limitadas a esta aplicação; justificativa em docs/security/README.md.
-vex:
-  - docs/security/ativacao.openvex.json
+# Exceções por CVE, versão, caminho e prazo; análise em docs/security/README.md.
+ignorefile: .trivyignore.yaml

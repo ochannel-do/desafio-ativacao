@@ -46,7 +46,7 @@ class ArchitectureTest {
         .check(classes);
   }
 
-  /** Premissas da análise VEX: API REST sem renderização XSLT nem fragmentos SSE. */
+  /** Premissas da análise de aplicabilidade: API REST sem renderização XSLT nem fragmentos SSE. */
   @Test
   void apiNaoIntroduzViewsOuSseSemRevisaoDeSeguranca() {
     noClasses()

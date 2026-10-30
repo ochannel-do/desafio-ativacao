@@ -3,8 +3,8 @@
 set -euo pipefail
 BASE_URL="${BASE_URL:-http://localhost:8080}"
 TOKEN="$("$(dirname "$0")/token-local.sh" sistema-smoke 'activation:write activation:read')"
-curl --fail --silent --show-error "$BASE_URL/actuator/health/readiness" >/dev/null
-EXTERNAL_ID="SMOKE-$(uuidgen)"
+curl --fail --silent --show-error --retry 30 --retry-connrefused --retry-all-errors --retry-delay 1 --retry-max-time 60 --max-time 2 "$BASE_URL/actuator/health/readiness" >/dev/null
+EXTERNAL_ID="SMOKE-$(python3 -c 'import uuid; print(uuid.uuid4())')"
 BODY="$(curl --fail --silent --show-error "$BASE_URL/api/v1/requests" \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d "{\"externalId\":\"$EXTERNAL_ID\",\"customerId\":\"C-SMOKE\",\"productCode\":\"INTERNET-500\"}")"

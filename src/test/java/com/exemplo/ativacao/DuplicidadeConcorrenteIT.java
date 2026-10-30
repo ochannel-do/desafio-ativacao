@@ -26,7 +26,7 @@ class DuplicidadeConcorrenteIT {
 
   @BeforeEach
   void limpar() {
-    jdbc.execute("truncate activation_request");
+    jdbc.execute("truncate activation_outbox, activation_request");
   }
 
   ResponseEntity<Map> enviar(String productCode) {

@@ -1,8 +1,10 @@
 package com.exemplo.ativacao.infrastructure.persistence;
 
 import com.exemplo.ativacao.core.application.port.in.ListarSolicitacoesUseCase.Filtro;
+import com.exemplo.ativacao.core.application.port.out.Outbox;
 import com.exemplo.ativacao.core.application.port.out.SolicitacaoRepository;
 import com.exemplo.ativacao.core.domain.model.SolicitacaoAtivacao;
+import com.exemplo.ativacao.core.domain.model.StatusSolicitacao;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -18,23 +20,29 @@ public class SolicitacaoRepositoryAdapter implements SolicitacaoRepository {
   private static final Sort MAIS_RECENTES =
       Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"));
   private final SolicitacaoJpaRepository repository;
+  private final Outbox outbox;
 
-  public SolicitacaoRepositoryAdapter(SolicitacaoJpaRepository repository) {
+  public SolicitacaoRepositoryAdapter(SolicitacaoJpaRepository repository, Outbox outbox) {
     this.repository = repository;
+    this.outbox = outbox;
   }
 
+  @Transactional
   public boolean inserirSeAusente(SolicitacaoAtivacao s) {
-    return repository.inserirSeAusente(
-            s.id(),
-            s.consumidor(),
-            s.externalId(),
-            s.customerId(),
-            s.productCode(),
-            s.correlationId(),
-            s.status().name(),
-            s.createdAt(),
-            s.updatedAt())
-        == 1;
+    boolean criada =
+        repository.inserirSeAusente(
+                s.id(),
+                s.consumidor(),
+                s.externalId(),
+                s.customerId(),
+                s.productCode(),
+                s.correlationId(),
+                s.status().name(),
+                s.createdAt(),
+                s.updatedAt())
+            == 1;
+    if (criada) outbox.agendar(s);
+    return criada;
   }
 
   public Optional<SolicitacaoAtivacao> porId(UUID id) {
@@ -74,6 +82,7 @@ public class SolicitacaoRepositoryAdapter implements SolicitacaoRepository {
         .toList();
   }
 
+  @Transactional
   public SolicitacaoAtivacao atualizar(SolicitacaoAtivacao s) {
     var d = s.dados();
     var entity = new SolicitacaoEntity();
@@ -92,7 +101,9 @@ public class SolicitacaoRepositoryAdapter implements SolicitacaoRepository {
     // A versão lida volta no merge; o Hibernate inclui "where version = ?" e falha se mudou.
     entity.version = d.versao();
     try {
-      return dominio(repository.saveAndFlush(entity));
+      var gravada = dominio(repository.saveAndFlush(entity));
+      if (gravada.status() == StatusSolicitacao.PENDING) outbox.agendar(gravada);
+      return gravada;
     } catch (ObjectOptimisticLockingFailureException e) {
       throw new ConflitoDeVersaoException(s.id());
     }

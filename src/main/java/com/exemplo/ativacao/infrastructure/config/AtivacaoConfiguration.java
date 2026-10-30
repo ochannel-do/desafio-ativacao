@@ -18,6 +18,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.*;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -33,8 +34,14 @@ public class AtivacaoConfiguration {
   }
 
   @Bean
-  SolicitacaoRepository solicitacaoRepository(SolicitacaoJpaRepository jpaRepository) {
-    return new SolicitacaoRepositoryAdapter(jpaRepository);
+  SolicitacaoRepository solicitacaoRepository(
+      SolicitacaoJpaRepository jpaRepository, Outbox outbox) {
+    return new SolicitacaoRepositoryAdapter(jpaRepository, outbox);
+  }
+
+  @Bean
+  Outbox outbox(JdbcTemplate jdbc) {
+    return new OutboxJdbcAdapter(jdbc);
   }
 
   @Bean

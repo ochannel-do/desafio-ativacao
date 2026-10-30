@@ -22,20 +22,26 @@ export KUBECONFIG="$HOME/.kube/config"
 kubectl get nodes
 ```
 
-No diagnóstico de 30/10/2026, K3s e Argo CD estavam saudáveis. OpenBao estava selado e External Secrets não sincronizava. Desselar o cofre no terminal privado usando as chaves sob guarda do responsável; não registrar chaves ou tokens no Git/chat. Validar SecretStore e ExternalSecret antes do rollout.
+No diagnóstico de 30/10/2026, o OpenBao antigo estava selado e suas chaves não foram localizadas. Foi criado um novo cofre no namespace `openbao-ativacao`, com TLS e PVC próprios. O material de recuperação fica somente no computador do responsável, fora do Git, em `~/.config/ativacao-homelab/openbao-ativacao/recuperacao.json`, com permissão `0600`. São três shares, com quórum de duas, além do token inicial. Fazer backup privado fora do servidor e não enviar seu conteúdo ao chat.
+
+O script `python3 scripts/bootstrap-cofre.py` prepara namespaces, TLS, cofre, policy, autenticação Kubernetes, banco/usuário próprios e sincronização dos segredos. Reutiliza o arquivo local para desselar após reinícios, sem reinicializar volumes existentes. Exige Python 3, OpenSSL, SSH e kubectl no computador, mais acesso ao kubeconfig e ao PostgreSQL administrativo no servidor. Não executá-lo sem revisar o destino e guardar o material de recuperação. Se o volume já estiver inicializado e o arquivo local faltar, o script interrompe sem substituir chaves.
+
+O SecretStore aponta para `https://openbao.openbao-ativacao.svc:8200`, confia na CA pública copiada para `ativacao-hml` e usa a role `ativacao-hml`, com audience `openbao`. A policy só permite ler `secret/data/ativacao/hml/config`. O servidor recebe apenas o vínculo `system:auth-delegator` necessário à revisão dos tokens de ServiceAccount.
+
+O AppProject/Application `ativacao-segredos` acompanha `k8s/openbao` em `main`. A CA privada, TLS privado, token e shares nunca entram nos manifests. O ClusterRoleBinding inicial fica em `k8s/bootstrap/openbao-auth.yaml`.
 
 ## Bootstrap
 
 1. Aplicar `k8s/bootstrap/namespaces.yaml`.
 2. Criar banco `ativacao_hml` e usuário exclusivo na instância `databases-hml/postgresql`. O usuário deve ser proprietário do banco/schema para Flyway. Fazer isso com credencial administrativa no terminal privado. Não reutilizar banco/usuário de `pedidobasecode` e não executar SQL com segredos em argumentos de processos ou histórico.
-3. Configurar no OpenBao KV v2 `secret/ativacao/hml/config` os campos `DB_USER`, `DB_PASSWORD`, `AUTH_ISSUER` e `AUTH_AUDIENCE=ativacao-api`. Para OAuth real, acrescentar `AUTH_JWK_SET_URI`; para homologação sem servidor de identidade, usar `AUTH_HMAC_KEY` aleatória com no mínimo 32 bytes e `AUTH_ISSUER=http://localhost/local`. Nunca usar a chave pública de desenvolvimento no cluster nem ativar o perfil `local`.
+3. Configurar no novo OpenBao KV v2 `secret/ativacao/hml/config` os campos `DB_USER`, `DB_PASSWORD`, `AUTH_ISSUER` e `AUTH_AUDIENCE=ativacao-api`. Para OAuth real, acrescentar `AUTH_JWK_SET_URI`; para homologação sem servidor de identidade, usar `AUTH_HMAC_KEY` aleatória com no mínimo 32 bytes e `AUTH_ISSUER=http://localhost/local`. Nunca usar a chave pública de desenvolvimento no cluster nem ativar o perfil `local`.
 4. Criar policy OpenBao que permita somente `read` em `secret/data/ativacao/hml/config`, vinculada à role Kubernetes `ativacao-hml`, ServiceAccount `openbao-reader`, namespace `ativacao-hml`. Aproveitar o mount de autenticação Kubernetes já existente; não substituir a configuração global do cofre.
-5. Copiar apenas o certificado público da CA para ConfigMap `openbao-ca`, chave `ca.crt`, no namespace `ativacao-hml`. O SecretStore existente em `pedidobasecode-hml` usa esse mesmo padrão; verificar validade da CA após recuperar o cofre.
+5. Copiar apenas o certificado público da CA para ConfigMap `openbao-ca`, chave `ca.crt`, no namespace `ativacao-hml`. Usar a CA do novo cofre, sem reutilizar a CA antiga.
 6. Aplicar `k8s/bootstrap/external-secrets.yaml`; aguardar `SecretStore/openbao` e `ExternalSecret/ativacao-config` em `Ready=True`.
-7. Garantir acesso de leitura ao pacote GHCR. Se o pacote for privado, criar `ghcr-pull` no namespace e configurar `imagePullSecrets` no Deployment via overlay. Usar credencial somente de leitura com acesso a esse pacote. Repositório público não torna automaticamente o pacote público.
+7. Garantir acesso de leitura ao pacote GHCR pelo Secret `ghcr-pull`, referenciado no Deployment. O bootstrap copia a credencial de pull já existente em `pedidobasecode-hml`, sem exibi-la. As credenciais do banco e da API são exclusivas deste projeto. Repositório público não torna automaticamente o pacote público.
 8. Confirmar que a branch `deploy` recebeu um digest válido. Aplicar inicialmente apenas o AppProject e a Application `ativacao-kafka` de `k8s/argocd/applications.yaml`; aguardar Kafka Ready e validar produção/consumo interno. Depois cadastrar `ativacao-hml`.
 
-Não instalar uma segunda instância de Argo CD nem PostgreSQL para este projeto. São três novos pods no desenho inicial: aplicação, Kafka e WireMock. Banco, cofre e observabilidade são compartilhados como infraestrutura, com identidades/dados isolados.
+Não instalar uma segunda instância de Argo CD nem PostgreSQL para este projeto. Este projeto acrescenta quatro pods: aplicação, Kafka, WireMock e o novo OpenBao. PostgreSQL e observabilidade são reutilizados com identidades/dados isolados. O cofre antigo foi retirado a pedido do responsável; os outros projetos precisam ter seus SecretStores e credenciais migrados quando forem retomados.
 
 ## Kafka do laboratório
 
@@ -74,3 +80,9 @@ Parar a versão antiga com polling antes da migração inicial. Flyway V4 agenda
 Replay do mesmo evento mantém `eventId`, identidade, versão e chave Kafka; inbox concluída evita novo HTTP. Nova tentativa de negócio gera novo evento automaticamente. DLT recebe envelopes inválidos, que exigem investigação/correção; não habilitar reenvio automático de payload inválido. Falhas técnicas transitórias mantêm o offset pendente para nova entrega.
 
 Reverter digest na branch `deploy` permite rollback para uma imagem compatível com Kafka e com as migrations já aplicadas. Isso não desfaz schema nem dados; não voltar à versão com agendador legado sem plano de migração. Não habilitar limpeza automática da inbox/outbox sem definir a janela de replay e retenção da DLT.
+
+## Cofre e recuperação
+
+A inicialização usa Shamir. Depois de um reinício do pod, desselar o novo cofre com duas shares do arquivo privado, ou executar novamente `python3 scripts/bootstrap-cofre.py` no computador que guarda o arquivo. Não armazenar as shares em um Secret do mesmo cluster nem adicioná-las à imagem. A senha do banco e a chave HMAC geradas ficam no novo KV e no arquivo privado `aplicacao.json`, na mesma pasta protegida.
+
+Para abrir a interface sem publicar um novo ingress, fazer port-forward de `svc/openbao` no namespace `openbao-ativacao`, com túnel SSH equivalente ao da aplicação. Confiar explicitamente na CA local antes de usar o navegador; não desabilitar a validação de certificados. Entrar com o token guardado no arquivo privado somente após o unseal.

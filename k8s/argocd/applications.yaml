@@ -81,3 +81,47 @@ spec:
       selfHeal: true
     syncOptions:
     - Prune=false
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: ativacao-segredos
+  namespace: argocd
+spec:
+  sourceRepos:
+  - https://github.com/ochannel-do/desafio-ativacao.git
+  destinations:
+  - namespace: openbao-ativacao
+    server: https://kubernetes.default.svc
+  namespaceResourceWhitelist:
+  - group: apps
+    kind: StatefulSet
+  - group: ''
+    kind: Service
+  - group: ''
+    kind: ConfigMap
+  - group: ''
+    kind: ServiceAccount
+  - group: networking.k8s.io
+    kind: NetworkPolicy
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ativacao-segredos
+  namespace: argocd
+spec:
+  project: ativacao-segredos
+  source:
+    repoURL: https://github.com/ochannel-do/desafio-ativacao.git
+    targetRevision: main
+    path: k8s/openbao
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openbao-ativacao
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+    - Prune=false

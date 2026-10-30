@@ -30,7 +30,7 @@ Outbox, inbox e solicitações ficam no mesmo PostgreSQL. As novas tabelas usam 
 
 No laboratório, um broker/controller KRaft com PVC e acesso interno limitado por NetworkPolicy. Sem alta disponibilidade, SASL ou TLS neste primeiro ambiente: isolamento de rede deve ser validado no cluster antes de uso. Acesso externo ao broker não é provisionado. Para dados/consumidores de produção, preparar autenticação, TLS, ACLs e topologia adequada antes de promover esse manifesto.
 
-GitHub Actions verifica, constrói e analisa a imagem; publica no GHCR e atualiza digest na branch `deploy`. Argo CD sincroniza a aplicação de homologação. Infraestrutura Kafka acompanha seu próprio caminho em `main`. OpenBao e External Secrets fornecem credenciais; sua recuperação é pré-requisito do deploy da aplicação.
+GitHub Actions verifica, constrói e analisa a imagem; publica no GHCR e atualiza digest na branch `deploy`. Argo CD sincroniza a aplicação de homologação. Infraestrutura Kafka acompanha seu próprio caminho em `main`. Um novo OpenBao em `openbao-ativacao` e External Secrets fornecem credenciais próprias. O cofre anterior estava selado sem as shares disponíveis e sua remoção foi autorizada pelo responsável. O novo material de recuperação fica em arquivo local privado fora do Git.
 
 ## Garantias e limites
 

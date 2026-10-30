@@ -1,0 +1,203 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openbao-config
+data:
+  config.hcl: "ui = true\ndisable_mlock = true\napi_addr = \"https://openbao.openbao-ativacao.svc:8200\"\
+    \ncluster_addr = \"https://openbao-0.openbao-internal.openbao-ativacao.svc:8201\"\
+    \nlistener \"tcp\" {\n  address = \"[::]:8200\"\n  cluster_address = \"[::]:8201\"\
+    \n  tls_cert_file = \"/openbao/tls/tls.crt\"\n  tls_key_file = \"/openbao/tls/tls.key\"\
+    \n}\nstorage \"raft\" {\n  path = \"/openbao/data\"\n  node_id = \"openbao-ativacao-0\"\
+    \n}\n"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: openbao-auth
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: openbao
+spec:
+  serviceName: openbao-internal
+  replicas: 1
+  selector:
+    matchLabels:
+      app: openbao-ativacao
+  template:
+    metadata:
+      labels:
+        app: openbao-ativacao
+    spec:
+      serviceAccountName: openbao-auth
+      automountServiceAccountToken: true
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: openbao
+        image: quay.io/openbao/openbao:2.7.1
+        command:
+        - /usr/bin/bao
+        - server
+        - -config=/openbao/config/config.hcl
+        env:
+        - name: HOME
+          value: /tmp
+        - name: GOMEMLIMIT
+          value: 256MiB
+        ports:
+        - name: api
+          containerPort: 8200
+        - name: cluster
+          containerPort: 8201
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 384Mi
+        volumeMounts:
+        - name: data
+          mountPath: /openbao/data
+        - name: config
+          mountPath: /openbao/config
+          readOnly: true
+        - name: tls
+          mountPath: /openbao/tls
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+        startupProbe:
+          tcpSocket:
+            port: api
+          failureThreshold: 30
+          periodSeconds: 5
+        readinessProbe:
+          exec:
+            command:
+            - /usr/bin/bao
+            - status
+            - -address=https://127.0.0.1:8200
+            - -ca-cert=/openbao/tls/ca.crt
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /v1/sys/health?standbyok=true&sealedcode=204&uninitcode=204
+            port: api
+            scheme: HTTPS
+          periodSeconds: 10
+      volumes:
+      - name: config
+        configMap:
+          name: openbao-config
+      - name: tls
+        secret:
+          secretName: openbao-tls
+          defaultMode: 288
+      - name: tmp
+        emptyDir:
+          sizeLimit: 64Mi
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      storageClassName: local-path
+      resources:
+        requests:
+          storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openbao
+spec:
+  selector:
+    app: openbao-ativacao
+  ports:
+  - name: api
+    port: 8200
+    targetPort: api
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openbao-internal
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app: openbao-ativacao
+  ports:
+  - name: api
+    port: 8200
+    targetPort: api
+  - name: cluster
+    port: 8201
+    targetPort: cluster
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: openbao
+spec:
+  podSelector:
+    matchLabels:
+      app: openbao-ativacao
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: external-secrets
+    ports:
+    - port: 8200
+      protocol: TCP
+  - from:
+    - podSelector:
+        matchLabels:
+          app: openbao-ativacao
+    ports:
+    - port: 8200
+      protocol: TCP
+    - port: 8201
+      protocol: TCP
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - port: 53
+      protocol: UDP
+    - port: 53
+      protocol: TCP
+  - ports:
+    - port: 443
+      protocol: TCP
+    - port: 6443
+      protocol: TCP
+  - to:
+    - podSelector:
+        matchLabels:
+          app: openbao-ativacao
+    ports:
+    - port: 8201
+      protocol: TCP

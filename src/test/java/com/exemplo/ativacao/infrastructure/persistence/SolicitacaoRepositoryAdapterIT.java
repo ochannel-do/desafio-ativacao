@@ -34,7 +34,7 @@ class SolicitacaoRepositoryAdapterIT {
 
   @BeforeEach
   void limpar() {
-    jdbc.execute("truncate activation_outbox, activation_request");
+    jdbc.execute("truncate activation_inbox, activation_outbox, activation_request");
   }
 
   SolicitacaoAtivacao nova(String externalId, String customer, Instant criadaEm) {

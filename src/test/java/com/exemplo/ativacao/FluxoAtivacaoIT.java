@@ -58,7 +58,7 @@ class FluxoAtivacaoIT {
   @BeforeEach
   void limpar() {
     provedor.resetAll();
-    jdbc.execute("truncate activation_outbox, activation_request");
+    jdbc.execute("truncate activation_inbox, activation_outbox, activation_request");
   }
 
   ResponseEntity<Map> criar(String externalId) {

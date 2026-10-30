@@ -38,6 +38,13 @@ public interface SolicitacaoJpaRepository
       @Param("createdAt") Instant createdAt,
       @Param("updatedAt") Instant updatedAt);
 
+  @Query(
+      value =
+          "select * from activation_request where id = :id and client_id = :consumidor for update",
+      nativeQuery = true)
+  Optional<SolicitacaoEntity> bloquearPorId(
+      @Param("id") UUID id, @Param("consumidor") String consumidor);
+
   Optional<SolicitacaoEntity> findByExternalId(String externalId);
 
   @Query(

@@ -1,6 +1,7 @@
 package com.exemplo.ativacao.core.application.usecase;
 
 import com.exemplo.ativacao.core.application.port.in.ReconciliarSolicitacoesUseCase;
+import com.exemplo.ativacao.core.application.port.out.Inbox;
 import com.exemplo.ativacao.core.application.port.out.SolicitacaoRepository;
 import com.exemplo.ativacao.core.application.port.out.Transacao;
 import java.time.Clock;
@@ -16,6 +17,7 @@ public final class ReconciliarSolicitacoesService implements ReconciliarSolicita
   private final Transacao transacao;
   private final PoliticaDeRetentativa politica;
   private final Clock clock;
+  private final Inbox inbox;
   private final Duration prazo;
   private final int tamanhoLote;
 
@@ -25,13 +27,15 @@ public final class ReconciliarSolicitacoesService implements ReconciliarSolicita
       PoliticaDeRetentativa politica,
       Clock clock,
       Duration prazo,
-      int tamanhoLote) {
+      int tamanhoLote,
+      Inbox inbox) {
     this.solicitacaoAdapter = solicitacaoAdapter;
     this.transacao = transacao;
     this.politica = politica;
     this.clock = clock;
     this.prazo = prazo;
     this.tamanhoLote = tamanhoLote;
+    this.inbox = inbox;
   }
 
   public int reconciliar() {
@@ -45,6 +49,7 @@ public final class ReconciliarSolicitacoesService implements ReconciliarSolicita
               s.falhar(agora, "Tentativas esgotadas: " + MOTIVO);
             else s.devolverParaFila(agora, agora, MOTIVO);
             solicitacaoAdapter.atualizar(s);
+            inbox.recuperar(s.id(), s.versao(), agora);
           }
           return presas.size();
         });

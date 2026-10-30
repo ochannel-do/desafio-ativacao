@@ -45,6 +45,22 @@ public class AtivacaoConfiguration {
   }
 
   @Bean
+  Inbox inbox(JdbcTemplate jdbc) {
+    return new InboxJdbcAdapter(jdbc);
+  }
+
+  @Bean
+  ProcessarMensagemUseCase processarMensagemUseCase(
+      SolicitacaoRepository repository,
+      Inbox inbox,
+      ProvedorAtivacao provedor,
+      Transacao transacao,
+      PoliticaDeRetentativa politica,
+      Clock clock) {
+    return new ProcessarMensagemService(repository, inbox, provedor, transacao, politica, clock);
+  }
+
+  @Bean
   Transacao transacao(PlatformTransactionManager manager) {
     return new TransacaoSpring(new TransactionTemplate(manager));
   }
@@ -103,6 +119,7 @@ public class AtivacaoConfiguration {
 
   @Bean
   ReconciliarSolicitacoesUseCase reconciliarSolicitacoesUseCase(
+      Inbox inbox,
       SolicitacaoRepository solicitacaoAdapter,
       Transacao transacao,
       PoliticaDeRetentativa politica,
@@ -114,7 +131,8 @@ public class AtivacaoConfiguration {
         politica,
         clock,
         props.prazoProcessamento(),
-        props.tamanhoLote());
+        props.tamanhoLote(),
+        inbox);
   }
 
   @Configuration

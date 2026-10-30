@@ -16,6 +16,9 @@ public interface SolicitacaoRepository {
 
   Optional<SolicitacaoAtivacao> porId(UUID id);
 
+  /** Reserva uma solicitação do consumidor dentro da transação do chamador. */
+  Optional<SolicitacaoAtivacao> bloquearPorId(UUID id, String consumidor);
+
   Optional<SolicitacaoAtivacao> porExternalId(String externalId);
 
   Fatia listar(Filtro filtro);

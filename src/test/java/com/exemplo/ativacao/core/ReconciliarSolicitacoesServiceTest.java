@@ -30,7 +30,8 @@ class ReconciliarSolicitacoesServiceTest {
           politica,
           Clock.fixed(agora, ZoneOffset.UTC),
           Duration.ofSeconds(60),
-          10);
+          10,
+          org.mockito.Mockito.mock(com.exemplo.ativacao.core.application.port.out.Inbox.class));
 
   SolicitacaoAtivacao processandoDesde(Instant desde, int tentativas) {
     var s =

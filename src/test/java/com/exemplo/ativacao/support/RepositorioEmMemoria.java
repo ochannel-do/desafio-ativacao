@@ -30,6 +30,10 @@ public class RepositorioEmMemoria implements SolicitacaoRepository {
     return Optional.ofNullable(linhas.get(id)).map(SolicitacaoAtivacao::reconstituir);
   }
 
+  public Optional<SolicitacaoAtivacao> bloquearPorId(UUID id, String consumidor) {
+    return porId(id).filter(s -> s.pertenceA(consumidor));
+  }
+
   public Optional<SolicitacaoAtivacao> porExternalId(String externalId) {
     return linhas.values().stream()
         .filter(d -> d.externalId().equals(externalId))

@@ -49,6 +49,11 @@ public class SolicitacaoRepositoryAdapter implements SolicitacaoRepository {
     return repository.findById(id).map(SolicitacaoRepositoryAdapter::dominio);
   }
 
+  @Transactional(propagation = Propagation.MANDATORY)
+  public Optional<SolicitacaoAtivacao> bloquearPorId(UUID id, String consumidor) {
+    return repository.bloquearPorId(id, consumidor).map(SolicitacaoRepositoryAdapter::dominio);
+  }
+
   public Optional<SolicitacaoAtivacao> porExternalId(String externalId) {
     return repository.findByExternalId(externalId).map(SolicitacaoRepositoryAdapter::dominio);
   }

@@ -5,6 +5,28 @@ spring:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/ativacao}
     username: ${DB_USER:ativacao}
     password: ${DB_PASSWORD:ativacao_local}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      enable-auto-commit: false
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      max-poll-records: 1
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+        delivery.timeout.ms: 10000
+        request.timeout.ms: 3000
+        max.block.ms: 5000
+    listener:
+      ack-mode: record
+      observation-enabled: true
+    template:
+      observation-enabled: true
   jpa:
     open-in-view: false
     hibernate:
@@ -18,6 +40,12 @@ logging:
     format:
       console: logstash
 ativacao:
+  mensageria:
+    habilitado: ${KAFKA_ENABLED:true}
+    topico: ${KAFKA_TOPIC:ativacao.local.solicitacoes.v1}
+    grupo: ${KAFKA_GROUP:ativacao-provedor-v1}
+    particoes: ${KAFKA_PARTITIONS:3}
+    replicas: ${KAFKA_REPLICATION_FACTOR:1}
   seguranca:
     emissor: ${AUTH_ISSUER:https://auth.exemplo.com}
     audiencia: ${AUTH_AUDIENCE:ativacao-api}

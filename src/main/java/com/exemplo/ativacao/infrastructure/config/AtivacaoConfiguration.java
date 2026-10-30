@@ -143,9 +143,8 @@ public class AtivacaoConfiguration {
       matchIfMissing = true)
   static class Agendamento {
     @Bean
-    AtivacaoAgendador ativacaoAgendador(
-        ProcessarSolicitacoesUseCase processar, ReconciliarSolicitacoesUseCase reconciliar) {
-      return new AtivacaoAgendador(processar, reconciliar);
+    AtivacaoAgendador ativacaoAgendador(ReconciliarSolicitacoesUseCase reconciliar) {
+      return new AtivacaoAgendador(reconciliar);
     }
   }
 }

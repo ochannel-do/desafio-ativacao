@@ -57,6 +57,9 @@ class FluxoAtivacaoIT {
 
   @Autowired TestRestTemplate http;
   @Autowired JdbcTemplate jdbc;
+  @Autowired org.springframework.kafka.core.KafkaTemplate<String, String> kafka;
+  @Autowired org.testcontainers.kafka.KafkaContainer broker;
+  @Autowired com.fasterxml.jackson.databind.ObjectMapper mapper;
 
   @BeforeEach
   void limpar() {
@@ -132,6 +135,110 @@ class FluxoAtivacaoIT {
                   .isEqualTo("COMPLETED");
             });
     provedor.verify(1, postRequestedFor(urlEqualTo("/provider/v1/activate")));
+  }
+
+  @Test
+  void republicacaoDoMesmoEventoNaoRepeteAtivacao() throws Exception {
+    provedor.stubFor(post("/provider/v1/activate").willReturn(ok()));
+    var id = criar("EXT-REPUBLICADA").getBody().get("id");
+    aguardarStatus(id, "COMPLETED");
+    var mensagem =
+        jdbc.queryForObject(
+            "select * from activation_outbox where request_id = ?::uuid",
+            (rs, n) ->
+                new com.exemplo.ativacao.core.application.port.in.ProcessarMensagemUseCase.Mensagem(
+                    1,
+                    rs.getObject("event_id", java.util.UUID.class),
+                    rs.getObject("request_id", java.util.UUID.class),
+                    rs.getString("client_id"),
+                    rs.getLong("request_version"),
+                    rs.getString("correlation_id")),
+            id.toString());
+    var enviada =
+        kafka
+            .send(
+                "ativacao.local.solicitacoes.v1",
+                id.toString(),
+                mapper.writeValueAsString(mensagem))
+            .get()
+            .getRecordMetadata();
+    try (var admin =
+        org.apache.kafka.clients.admin.Admin.create(
+            Map.of("bootstrap.servers", broker.getBootstrapServers()))) {
+      await()
+          .atMost(Duration.ofSeconds(15))
+          .untilAsserted(
+              () -> {
+                var offsets =
+                    admin
+                        .listConsumerGroupOffsets("ativacao-provedor-v1")
+                        .partitionsToOffsetAndMetadata()
+                        .get();
+                var offset =
+                    offsets.get(
+                        new org.apache.kafka.common.TopicPartition(
+                            enviada.topic(), enviada.partition()));
+                assertThat(offset).isNotNull();
+                assertThat(offset.offset()).isGreaterThan(enviada.offset());
+              });
+    }
+    provedor.verify(1, postRequestedFor(urlEqualTo("/provider/v1/activate")));
+  }
+
+  @Test
+  void envelopeInvalidoVaiParaDltSemChamarProvedor() throws Exception {
+    var invalida = "{invalida-" + java.util.UUID.randomUUID();
+    var config = new java.util.HashMap<String, Object>();
+    config.put("bootstrap.servers", broker.getBootstrapServers());
+    config.put("group.id", "teste-dlt-" + java.util.UUID.randomUUID());
+    config.put("auto.offset.reset", "earliest");
+    config.put("enable.auto.commit", false);
+    config.put("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
+    config.put("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
+    try (var consumidor =
+        new org.apache.kafka.clients.consumer.KafkaConsumer<String, String>(config)) {
+      consumidor.subscribe(java.util.List.of("ativacao.local.solicitacoes.v1.dlt"));
+      kafka.send("ativacao.local.solicitacoes.v1", "invalida", invalida).get();
+      await()
+          .atMost(Duration.ofSeconds(20))
+          .until(
+              () -> {
+                for (var r : consumidor.poll(Duration.ofMillis(200)))
+                  if (invalida.equals(r.value())) return true;
+                return false;
+              });
+    }
+    provedor.verify(0, postRequestedFor(urlEqualTo("/provider/v1/activate")));
+  }
+
+  @Test
+  void kafkaIndisponivelMantemIntencaoERecuperaDepois() {
+    provedor.stubFor(post("/provider/v1/activate").willReturn(ok()));
+    broker.getDockerClient().pauseContainerCmd(broker.getContainerId()).exec();
+    Object id;
+    try {
+      id = criar("EXT-KAFKA-FORA").getBody().get("id");
+      await()
+          .atMost(Duration.ofSeconds(20))
+          .untilAsserted(
+              () ->
+                  assertThat(
+                          jdbc.queryForObject(
+                              "select count(*) from activation_outbox where request_id = ?::uuid and lease_token is null and published_at is null and available_at > now()",
+                              Long.class,
+                              id.toString()))
+                      .isEqualTo(1));
+      assertThat(
+              jdbc.queryForObject(
+                  "select status from activation_request where id = ?::uuid",
+                  String.class,
+                  id.toString()))
+          .isEqualTo("PENDING");
+      provedor.verify(0, postRequestedFor(urlEqualTo("/provider/v1/activate")));
+    } finally {
+      broker.getDockerClient().unpauseContainerCmd(broker.getContainerId()).exec();
+    }
+    aguardarStatus(id, "COMPLETED");
   }
 
   @Test

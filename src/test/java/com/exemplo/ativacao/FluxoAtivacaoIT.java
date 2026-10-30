@@ -5,6 +5,7 @@ import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMoc
 import static org.assertj.core.api.Assertions.*;
 import static org.awaitility.Awaitility.await;
 
+import com.exemplo.ativacao.support.KafkaTestConfiguration;
 import com.exemplo.ativacao.support.PostgresTestConfiguration;
 import com.exemplo.ativacao.support.Tokens;
 import com.github.tomakehurst.wiremock.WireMockServer;
@@ -27,6 +28,8 @@ import org.springframework.test.context.DynamicPropertySource;
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = {
       "ativacao.processamento.habilitado=true",
+      "ativacao.mensageria.habilitado=true",
+      "ativacao.mensageria.intervalo=100ms",
       "ativacao.processamento.intervalo=100ms",
       "ativacao.processamento.backoff-base=100ms",
       "ativacao.processamento.backoff-teto=200ms",
@@ -34,7 +37,7 @@ import org.springframework.test.context.DynamicPropertySource;
       "ativacao.provedor.read-timeout=500ms"
     })
 @ActiveProfiles("test")
-@Import(PostgresTestConfiguration.class)
+@Import({PostgresTestConfiguration.class, KafkaTestConfiguration.class})
 class FluxoAtivacaoIT {
   static WireMockServer provedor = new WireMockServer(wireMockConfig().dynamicPort());
 
@@ -104,6 +107,31 @@ class FluxoAtivacaoIT {
             .withHeader("Idempotency-Key", equalTo(criada.getBody().get("id").toString()))
             .withHeader(
                 "X-Correlation-Id", equalTo(criada.getHeaders().getFirst("X-Correlation-Id"))));
+  }
+
+  @Test
+  void fluxoPassaPelaOutboxKafkaEInbox() {
+    provedor.stubFor(post("/provider/v1/activate").willReturn(ok()));
+    var id = criar("EXT-KAFKA").getBody().get("id");
+    aguardarStatus(id, "COMPLETED");
+    await()
+        .atMost(Duration.ofSeconds(10))
+        .untilAsserted(
+            () -> {
+              assertThat(
+                      jdbc.queryForObject(
+                          "select count(*) from activation_outbox where request_id = ?::uuid and published_at is not null",
+                          Long.class,
+                          id.toString()))
+                  .isEqualTo(1);
+              assertThat(
+                      jdbc.queryForObject(
+                          "select status from activation_inbox where request_id = ?::uuid",
+                          String.class,
+                          id.toString()))
+                  .isEqualTo("COMPLETED");
+            });
+    provedor.verify(1, postRequestedFor(urlEqualTo("/provider/v1/activate")));
   }
 
   @Test

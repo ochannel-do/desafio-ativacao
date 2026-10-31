@@ -39,17 +39,42 @@ docker compose up -d kafka postgres provider-mock jaeger
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
-Gere um token local (o perfil `local` aceita JWT HS256 com uma chave de desenvolvimento, sem servidor de autorização) e chame a API:
+Com a aplicação em execução, você pode testar e adaptar as chamadas abaixo no terminal, na raiz do projeto. O teste tem duas etapas: gerar uma credencial e usá-la nas requisições.
+
+**1. Gere o token de acesso:**
 
 ```sh
 TOKEN=$(scripts/token-local.sh sistema-a "activation:write activation:read")
+```
 
+O script gera um JWT e o comando guarda esse texto na variável `TOKEN` do terminal; ele ainda não chama a API. O perfil `local` valida a assinatura HS256 com a mesma chave de desenvolvimento usada pelo script, por isso não é necessário subir um servidor de autorização. Esse perfil também é usado pela aplicação no Docker Compose.
+
+- `sistema-a` identifica o consumidor (`client_id`). Você pode trocar esse nome para simular outro sistema; cada consumidor só consulta suas próprias solicitações.
+- `activation:write` permite criar solicitações e `activation:read` permite consultá-las. Você pode alterar os escopos para testar as permissões.
+- O token vale por uma hora. Quando expirar, execute o comando novamente. Se configurar `AUTH_HMAC_KEY`, use o mesmo valor na aplicação e no terminal que gera o token.
+
+**2. Use o token para criar uma solicitação, no mesmo terminal:**
+
+```sh
 curl -i http://localhost:8080/api/v1/requests \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{"externalId":"EXT-12345","customerId":"CUST-10001","productCode":"INTERNET-500"}'
-
-curl http://localhost:8080/api/v1/requests/<id> -H "Authorization: Bearer $TOKEN"
 ```
+
+O `curl` faz a chamada HTTP. O header `Authorization` envia o token gerado, e `-d` envia o JSON como corpo de uma requisição `POST`. Você pode editar `externalId`, `customerId` e `productCode` nesse JSON para testar seus próprios dados. Use um novo `externalId` para criar outra solicitação: repetir o mesmo conteúdo retorna o registro original; reutilizar o identificador com dados diferentes retorna `409`.
+
+**3. Consulte o resultado:** copie o campo `id` da resposta e substitua `COLE_O_ID_AQUI` abaixo. A criação retorna `PENDING`, pois a ativação é assíncrona; repita a consulta para acompanhar o status.
+
+```sh
+curl "http://localhost:8080/api/v1/requests/COLE_O_ID_AQUI" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Ou liste as solicitações do consumidor, ajustando os filtros na URL:
+curl "http://localhost:8080/api/v1/requests?customerId=CUST-10001&page=0&size=10" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Você pode reutilizar o mesmo token nessas chamadas enquanto ele estiver válido e tiver o escopo exigido pela rota. Veja as rotas, os filtros e as respostas na seção [API](#api). Se preferir editar e executar as requisições pelo navegador, siga [Testar pelo Swagger UI](#testar-pelo-swagger-ui).
 
 O mock do provedor (WireMock, `wiremock/mappings`) responde conforme o `productCode`: `INVALID-*` devolve 400, `BUSY-*` devolve 503 com `Retry-After`, `SLOW-*` demora 5 s (timeout) e os demais ativam com sucesso.
 

@@ -88,6 +88,8 @@ O mock do provedor (WireMock, `wiremock/mappings`) responde conforme o `productC
 | `http://localhost:16686` | Traces (Jaeger, serviço `ativacao`) |
 | `http://localhost:8089/__admin` | Mock do provedor |
 
+Para usar o Keycloak do home lab com os clientes `empresa-a` e `empresa-b`, veja o [guia de integração](docs/keycloak/README.md).
+
 ## Testar pelo Swagger UI
 
 Com a aplicação em execução, abra [Swagger UI](http://localhost:8080/swagger-ui.html).

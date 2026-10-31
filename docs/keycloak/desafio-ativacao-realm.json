@@ -1,0 +1,98 @@
+{
+  "realm": "desafio-ativacao",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "accessTokenLifespan": 300,
+  "defaultSignatureAlgorithm": "RS256",
+  "clientScopes": [
+    {
+      "name": "activation:read",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
+    },
+    {
+      "name": "activation:write",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      }
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "empresa-a",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "fullScopeAllowed": false,
+      "defaultClientScopes": [],
+      "optionalClientScopes": [
+        "activation:read",
+        "activation:write"
+      ],
+      "protocolMappers": [
+        {
+          "name": "ativacao-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "ativacao-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ],
+      "webOrigins": [
+        "https://desafio-ativacao.olivetree.dev.br"
+      ]
+    },
+    {
+      "clientId": "empresa-b",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "fullScopeAllowed": false,
+      "defaultClientScopes": [],
+      "optionalClientScopes": [
+        "activation:read",
+        "activation:write"
+      ],
+      "protocolMappers": [
+        {
+          "name": "ativacao-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "ativacao-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ],
+      "webOrigins": [
+        "https://desafio-ativacao.olivetree.dev.br"
+      ]
+    }
+  ],
+  "attributes": {
+    "frontendUrl": "https://keycloak.olivetree.dev.br"
+  }
+}

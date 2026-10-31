@@ -86,3 +86,7 @@ Reverter digest na branch `deploy` permite rollback para uma imagem compatível 
 A inicialização usa Shamir. Depois de um reinício do pod, desselar o novo cofre com duas shares do arquivo privado, ou executar novamente `python3 scripts/bootstrap-cofre.py` no computador que guarda o arquivo. Não armazenar as shares em um Secret do mesmo cluster nem adicioná-las à imagem. A senha do banco e a chave HMAC geradas ficam no novo KV e no arquivo privado `aplicacao.json`, na mesma pasta protegida.
 
 Para abrir a interface sem publicar um novo ingress, fazer port-forward de `svc/openbao` no namespace `openbao-ativacao`, com túnel SSH equivalente ao da aplicação. Confiar explicitamente na CA local antes de usar o navegador; não desabilitar a validação de certificados. Entrar com o token guardado no arquivo privado somente após o unseal.
+
+## Keycloak
+
+A integração com o realm `desafio-ativacao`, os clientes das duas empresas, emissão de tokens e configuração no OpenBao está no [guia do Keycloak](../docs/keycloak/README.md). Aplicar a regra adicional de saída `k8s/bootstrap/keycloak-jwks.yaml` ao habilitar a integração.

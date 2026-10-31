@@ -32,7 +32,7 @@ Não há segredo de cliente configurado no código, no OpenAPI ou nos manifests.
 
 ## Entrega
 
-O ConfigMap de homologação contém `SWAGGER_OAUTH_TOKEN_URL`. Ajustar seu valor ao endereço real do Keycloak antes da publicação pública. A alteração do Swagger entra em vigor quando a nova versão da aplicação é implantada; mudanças apenas na configuração de um pod existente exigem reinício para carregar as variáveis.
+O OpenBao fornece `SWAGGER_OAUTH_TOKEN_URL` junto de `AUTH_ISSUER`, sincronizados pelo ExternalSecret de homologação. Ajustar seu valor ao endereço real do Keycloak antes da publicação pública. A alteração do Swagger entra em vigor quando a nova versão da aplicação é implantada; mudanças apenas na configuração de um pod existente exigem reinício para carregar as variáveis.
 
 Referências: [OAuth2 no Swagger UI](https://swagger.io/docs/open-source-tools/swagger-ui/usage/oauth2/) e [administração do Keycloak](https://www.keycloak.org/docs/latest/server_admin/index.html).
 

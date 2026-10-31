@@ -18,9 +18,23 @@ public class OpenApiConfiguration {
                 .title("API de ativação de produtos")
                 .version("v1")
                 .description(
-                    "Registre e consulte solicitações de ativação. Use um JWT com "
-                        + "activation:write para criar e activation:read para consultar. "
-                        + "Cada consumidor visualiza apenas suas próprias solicitações."))
+                    """
+                    Registre e consulte solicitações de ativação. Use um JWT com
+                    `activation:write` para criar e `activation:read` para consultar.
+                    Cada consumidor visualiza apenas suas próprias solicitações.
+
+                    ### Gerar token local
+
+                    Com a aplicação no perfil `local`, execute na raiz do projeto:
+
+                    ```sh
+                    scripts/token-local.sh sistema-a "activation:write activation:read"
+                    ```
+
+                    Copie o token retornado, clique em **Authorize** e cole somente o JWT,
+                    sem o prefixo `Bearer`. Depois use **Try it out** e **Execute** na operação desejada.
+                    Se o token expirar, gere outro e atualize em **Authorize**.
+                    """))
         .components(
             new Components()
                 .addSecuritySchemes(

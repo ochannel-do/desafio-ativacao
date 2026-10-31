@@ -23,6 +23,33 @@ import org.springframework.test.context.ActiveProfiles;
 class SegurancaIT {
   @Autowired TestRestTemplate http;
 
+  @Test
+  void documentacaoPublicaPermiteTestarComBearerSemExporPrincipal() {
+    var ui = http.getForEntity("/swagger-ui/index.html", String.class);
+    assertThat(ui.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(ui.getBody()).contains("Swagger UI");
+
+    var config = http.getForEntity("/v3/api-docs/swagger-config", Map.class);
+    assertThat(config.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(config.getBody().get("url")).isEqualTo("/v3/api-docs");
+
+    var docs = http.getForEntity("/v3/api-docs", Map.class);
+    assertThat(docs.getStatusCode()).isEqualTo(HttpStatus.OK);
+    var components = (Map<?, ?>) docs.getBody().get("components");
+    var schemes = (Map<?, ?>) components.get("securitySchemes");
+    assertThat((Map<String, Object>) schemes.get("bearerAuth"))
+        .containsEntry("type", "http")
+        .containsEntry("scheme", "bearer");
+    var paths = (Map<?, ?>) docs.getBody().get("paths");
+    assertThat(paths.keySet().stream().map(Object::toString).toList())
+        .containsExactlyInAnyOrder("/api/v1/requests", "/api/v1/requests/{id}");
+    var operations = (Map<?, ?>) paths.get("/api/v1/requests");
+    var post = (Map<?, ?>) operations.get("post");
+    assertThat(post.get("security").toString()).contains("bearerAuth");
+    assertThat(post.get("requestBody")).isNotNull();
+    assertThat(docs.getBody().toString()).doesNotContain("Jwt");
+  }
+
   int criar(String token, String externalId) {
     var headers = new HttpHeaders();
     headers.setContentType(MediaType.APPLICATION_JSON);

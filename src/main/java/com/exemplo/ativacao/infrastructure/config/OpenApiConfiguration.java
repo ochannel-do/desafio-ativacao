@@ -33,14 +33,11 @@ public class OpenApiConfiguration {
                           apenas suas próprias solicitações.
 
                           Clique em **Authorize**, escolha **keycloak** e informe o `client_id`
-                          (`empresa-a` ou `empresa-b`) e seu `client_secret`. Selecione
-                          `activation:write` para criar e `activation:read` para consultar.
+                          (`empresa-a` ou `empresa-b`) e seu `client_secret` (senha da empresa).
+                          As permissões de leitura e escrita já estão selecionadas.
                           O Swagger solicita o token ao Keycloak e o envia nas chamadas à API.
                           Quando o token expirar, autorize novamente. Para trocar de empresa,
                           use **Logout** e autorize com as credenciais da outra empresa.
-
-                          Se já possui um token, pode colá-lo na opção **bearerAuth**, sem
-                          o prefixo `Bearer`. Use apenas uma das opções de autorização por vez.
                           """
                             : """
                     Registre e consulte solicitações de ativação. Use um JWT com
@@ -59,16 +56,7 @@ public class OpenApiConfiguration {
                     sem o prefixo `Bearer`. Depois use **Try it out** e **Execute** na operação desejada.
                     Se o token expirar, gere outro e atualize em **Authorize**.
                     """))
-            .components(
-                new Components()
-                    .addSecuritySchemes(
-                        "bearerAuth",
-                        new SecurityScheme()
-                            .type(SecurityScheme.Type.HTTP)
-                            .scheme("bearer")
-                            .bearerFormat("JWT")
-                            .description("Cole somente o JWT, sem o prefixo Bearer.")))
-            .addSecurityItem(new SecurityRequirement().addList("bearerAuth"));
+            .components(new Components());
     if (usaKeycloak) {
       api.getComponents()
           .addSecuritySchemes(
@@ -88,6 +76,16 @@ public class OpenApiConfiguration {
       api.addSecurityItem(
           new SecurityRequirement()
               .addList("keycloak", List.of("activation:read", "activation:write")));
+    } else {
+      api.getComponents()
+          .addSecuritySchemes(
+              "bearerAuth",
+              new SecurityScheme()
+                  .type(SecurityScheme.Type.HTTP)
+                  .scheme("bearer")
+                  .bearerFormat("JWT")
+                  .description("Cole somente o JWT, sem o prefixo Bearer."));
+      api.addSecurityItem(new SecurityRequirement().addList("bearerAuth"));
     }
     return api;
   }

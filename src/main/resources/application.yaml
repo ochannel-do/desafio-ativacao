@@ -108,4 +108,5 @@ springdoc:
     persist-authorization: false
     oauth:
       scope-separator: " "
+      scopes: [activation:read, activation:write]
     supported-submit-methods: [get, post]

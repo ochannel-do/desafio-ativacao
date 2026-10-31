@@ -22,11 +22,11 @@ Ao mudar o endereço público do Keycloak, atualizar também `AUTH_ISSUER` para 
 
 1. Abrir o Swagger e clicar em **Authorize**.
 2. Na seção **keycloak**, preencher `client_id` com `empresa-a` ou `empresa-b` e informar o segredo correspondente.
-3. Selecionar `activation:read` para consultar e `activation:write` para criar.
+3. As permissões `activation:read` e `activation:write` já aparecem selecionadas. Se precisar apenas consultar, pode desmarcar a escrita.
 4. Clicar em **Authorize** e fechar a janela. O Swagger envia o token nas chamadas.
 5. Para trocar de empresa, clicar em **Logout** e informar as outras credenciais. Quando o token expirar, autorizar novamente.
 
-A opção **bearerAuth** permanece disponível para tokens obtidos fora do navegador. Usar apenas uma forma de autorização por vez.
+Com o Keycloak configurado, o Swagger exibe somente a autorização da empresa, sem o campo para colar um token. A opção **bearerAuth** fica disponível somente no desenvolvimento sem servidor de tokens.
 
 Não há segredo de cliente configurado no código, no OpenAPI ou nos manifests. Cada pessoa que testa informa a credencial da empresa no momento do uso. A configuração desativa a persistência da autorização após recarregar a página.
 

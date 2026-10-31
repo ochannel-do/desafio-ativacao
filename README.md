@@ -93,7 +93,13 @@ O mock do provedor (WireMock, `wiremock/mappings`) responde conforme o `productC
 Com a aplicação em execução, abra [Swagger UI](http://localhost:8080/swagger-ui.html).
 A documentação é pública; executar as operações exige o mesmo JWT e os mesmos escopos da API.
 
-1. Gere o token local: `scripts/token-local.sh sistema-a "activation:write activation:read"`.
+1. Abra um terminal na pasta raiz do projeto (`desafio-ativacao`, onde ficam o `pom.xml` e a pasta `scripts`). Execute o comando abaixo para gerar o token local:
+
+   ```sh
+   scripts/token-local.sh sistema-a "activation:write activation:read"
+   ```
+
+   O script imprime o JWT no terminal. Copie o token completo para usá-lo no próximo passo. Nesse exemplo, `sistema-a` identifica o consumidor, e os escopos permitem criar e consultar solicitações.
 2. Clique em **Authorize**, cole somente o JWT (sem `Bearer`) e confirme.
 3. Abra `POST /api/v1/requests`, clique em **Try it out** e preencha:
    `{"externalId":"EXT-12345","customerId":"CUST-10001","productCode":"INTERNET-500"}`.

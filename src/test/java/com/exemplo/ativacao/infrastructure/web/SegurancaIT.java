@@ -28,6 +28,9 @@ class SegurancaIT {
     var ui = http.getForEntity("/swagger-ui/index.html", String.class);
     assertThat(ui.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(ui.getBody()).contains("Swagger UI");
+    var initializer = http.getForEntity("/swagger-ui/swagger-initializer.js", String.class);
+    assertThat(initializer.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(initializer.getBody()).contains("activation:read", "activation:write");
 
     var config = http.getForEntity("/v3/api-docs/swagger-config", Map.class);
     assertThat(config.getStatusCode()).isEqualTo(HttpStatus.OK);

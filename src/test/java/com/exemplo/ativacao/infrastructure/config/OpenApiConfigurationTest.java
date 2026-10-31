@@ -29,12 +29,13 @@ class OpenApiConfigurationTest {
               assertThat(flow.getTokenUrl()).isEqualTo(tokenUrl);
               assertThat(flow.getScopes().keySet())
                   .containsExactlyInAnyOrder("activation:read", "activation:write");
+              assertThat(api.getComponents().getSecuritySchemes()).containsOnlyKeys("keycloak");
               assertThat(api.getSecurity())
-                  .anySatisfy(requirement -> assertThat(requirement).containsKey("keycloak"))
-                  .anySatisfy(requirement -> assertThat(requirement).containsKey("bearerAuth"));
+                  .hasSize(1)
+                  .allSatisfy(requirement -> assertThat(requirement).containsOnlyKeys("keycloak"));
               assertThat(api.getInfo().getDescription())
                   .contains("client_id", "client_secret", "Authorize")
-                  .doesNotContain("token-local.sh");
+                  .doesNotContain("token-local.sh", "bearerAuth");
               assertThat(api.toString()).doesNotContain("clientSecret=");
             });
   }

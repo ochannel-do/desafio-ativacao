@@ -35,6 +35,18 @@ import org.springframework.test.web.servlet.MockMvc;
       "ativacao.seguranca.chave-hmac=" + Tokens.CHAVE
     })
 class SolicitacaoHttpTest {
+  @Test
+  void apresentacaoDaArquiteturaEPublicaSemLiberarEscritaOuRotasDesconhecidas() throws Exception {
+    mvc.perform(get("/arquitetura.html"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
+        .andExpect(content().string(containsString("id=\"seguranca\"")))
+        .andExpect(content().string(containsString("id=\"observabilidade\"")));
+    mvc.perform(post("/arquitetura.html")).andExpect(status().isUnauthorized());
+    mvc.perform(get("/pagina-nao-autorizada.html")).andExpect(status().isUnauthorized());
+    mvc.perform(get("/api/v1/requests")).andExpect(status().isUnauthorized());
+  }
+
   static JwtRequestPostProcessor escrita() {
     return token(SegurancaConfiguration.ESCOPO_ESCRITA);
   }

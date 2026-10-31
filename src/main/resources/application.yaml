@@ -40,6 +40,8 @@ logging:
     format:
       console: logstash
 ativacao:
+  documentacao:
+    token-url: ${SWAGGER_OAUTH_TOKEN_URL:}
   mensageria:
     habilitado: ${KAFKA_ENABLED:true}
     topico: ${KAFKA_TOPIC:ativacao.local.solicitacoes.v1}
@@ -103,4 +105,7 @@ management:
 springdoc:
   paths-to-match: /api/v1/requests/**
   swagger-ui:
+    persist-authorization: false
+    oauth:
+      scope-separator: " "
     supported-submit-methods: [get, post]

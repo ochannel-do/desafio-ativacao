@@ -92,7 +92,7 @@ kind: ConfigMap
 metadata:
   name: ativacao-config
 data:
-  SWAGGER_OAUTH_TOKEN_URL: https://keycloak.homelab/realms/desafio-ativacao/protocol/openid-connect/token
+  SWAGGER_OAUTH_TOKEN_URL: https://keycloak.olivetree.dev.br/realms/desafio-ativacao/protocol/openid-connect/token
   DB_URL: jdbc:postgresql://postgresql.databases-hml.svc.cluster.local:5432/ativacao_hml
   KAFKA_BOOTSTRAP_SERVERS: kafka.messaging.svc.cluster.local:9092
   KAFKA_TOPIC: ativacao.hml.solicitacoes.v1

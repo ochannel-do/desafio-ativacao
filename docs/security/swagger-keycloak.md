@@ -5,7 +5,7 @@ O Swagger pode solicitar um token pelo fluxo OAuth2 `client_credentials`. Config
 Para o realm `desafio-ativacao`, com o Keycloak publicado em um endereço HTTPS, o endpoint segue este formato:
 
 ```text
-https://ENDERECO_DO_KEYCLOAK/realms/desafio-ativacao/protocol/openid-connect/token
+https://keycloak.olivetree.dev.br/realms/desafio-ativacao/protocol/openid-connect/token
 ```
 
 O navegador precisa conseguir acessar esse endereço e confiar em seu certificado. Um nome privado como `keycloak.homelab` só funciona nas redes em que ele é resolvido e acessível. Se a aplicação for publicada na internet, usar o endereço HTTPS público do Keycloak e um certificado válido para esse endereço.
@@ -35,3 +35,12 @@ Não há segredo de cliente configurado no código, no OpenAPI ou nos manifests.
 O ConfigMap de homologação contém `SWAGGER_OAUTH_TOKEN_URL`. Ajustar seu valor ao endereço real do Keycloak antes da publicação pública. A alteração do Swagger entra em vigor quando a nova versão da aplicação é implantada; mudanças apenas na configuração de um pod existente exigem reinício para carregar as variáveis.
 
 Referências: [OAuth2 no Swagger UI](https://swagger.io/docs/open-source-tools/swagger-ui/usage/oauth2/) e [administração do Keycloak](https://www.keycloak.org/docs/latest/server_admin/index.html).
+
+## Endereços deste laboratório
+
+- Swagger: `https://desafio-ativacao.olivetree.dev.br/swagger-ui/index.html`.
+- Keycloak: `https://keycloak.olivetree.dev.br`.
+- Origem permitida nos dois clientes: `https://desafio-ativacao.olivetree.dev.br`.
+- Emissor do realm: `https://keycloak.olivetree.dev.br/realms/desafio-ativacao`.
+
+O OpenAPI usa servidor relativo `/`, para as chamadas acompanharem o HTTPS e o domínio em que o Swagger está aberto, inclusive atrás do Cloudflare Tunnel. Os túneis encaminham para os Services internos da aplicação e do Keycloak por HTTP. O endpoint de chaves usado pela API permanece interno ao cluster.

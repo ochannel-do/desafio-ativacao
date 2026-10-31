@@ -5,4 +5,4 @@ resources:
 - ../../base
 images:
   - name: ghcr.io/ochannel-do/desafio-ativacao
-    digest: sha256:a9409d40f6516a10cf50fd92452690f94de37a11eec4e76c0bfbf99cc1eefbcd
+    digest: sha256:e1d88cff50785d695071913111b973b8aaf003f09dea359f33c90a79f242e2a6

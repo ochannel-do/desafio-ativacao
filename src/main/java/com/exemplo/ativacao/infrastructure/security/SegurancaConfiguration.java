@@ -39,6 +39,7 @@ public class SegurancaConfiguration {
                     .permitAll()
                     .requestMatchers(
                         HttpMethod.GET,
+                        "/arquitetura.html",
                         "/swagger-ui.html",
                         "/swagger-ui/**",
                         "/v3/api-docs",

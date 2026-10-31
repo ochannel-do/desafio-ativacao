@@ -81,6 +81,7 @@ O mock do provedor (WireMock, `wiremock/mappings`) responde conforme o `productC
 | Endereço | Para quê |
 | --- | --- |
 | `http://localhost:8080/api/v1/requests` | API |
+| `http://localhost:8080/arquitetura.html` | Apresentação pública da arquitetura, segurança e observabilidade |
 | `http://localhost:8080/swagger-ui.html` | Swagger UI para testar a API |
 | `http://localhost:8080/v3/api-docs` | Contrato OpenAPI (JSON) |
 | `http://localhost:8080/actuator/health/liveness` e `/readiness` | Probes |
@@ -139,6 +140,8 @@ Validação: `externalId`, `customerId` e `productCode` são obrigatórios, têm
 ```
 
 ## Arquitetura
+
+A apresentação técnica está em `/arquitetura.html`, servida pela própria aplicação, sem autenticação (somente GET). Ela explica as decisões, o isolamento entre empresas, as proteções e a observabilidade; a simulação A/B é ilustrativa e não acessa dados reais. As rotas da API continuam exigindo JWT e escopos.
 
 Arquitetura hexagonal enxuta, num único módulo. O `core` é Java puro e as regras de dependência são verificadas por ArchUnit.
 

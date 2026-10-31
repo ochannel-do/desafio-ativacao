@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.security.SecurityScheme;
+import io.swagger.v3.oas.models.servers.Server;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
@@ -22,6 +23,7 @@ class OpenApiConfigurationTest {
               var api = ctx.getBean(OpenAPI.class);
               var oauth = api.getComponents().getSecuritySchemes().get("keycloak");
               assertThat(oauth).isNotNull();
+              assertThat(api.getServers()).extracting(Server::getUrl).containsExactly("/");
               assertThat(oauth.getType()).isEqualTo(SecurityScheme.Type.OAUTH2);
               var flow = oauth.getFlows().getClientCredentials();
               assertThat(flow.getTokenUrl()).isEqualTo(tokenUrl);

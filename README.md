@@ -56,10 +56,28 @@ O mock do provedor (WireMock, `wiremock/mappings`) responde conforme o `productC
 | Endereço | Para quê |
 | --- | --- |
 | `http://localhost:8080/api/v1/requests` | API |
+| `http://localhost:8080/swagger-ui.html` | Swagger UI para testar a API |
+| `http://localhost:8080/v3/api-docs` | Contrato OpenAPI (JSON) |
 | `http://localhost:8080/actuator/health/liveness` e `/readiness` | Probes |
 | `http://localhost:8080/actuator/prometheus` | Métricas |
 | `http://localhost:16686` | Traces (Jaeger, serviço `ativacao`) |
 | `http://localhost:8089/__admin` | Mock do provedor |
+
+## Testar pelo Swagger UI
+
+Com a aplicação em execução, abra [Swagger UI](http://localhost:8080/swagger-ui.html).
+A documentação é pública; executar as operações exige o mesmo JWT e os mesmos escopos da API.
+
+1. Gere o token local: `scripts/token-local.sh sistema-a "activation:write activation:read"`.
+2. Clique em **Authorize**, cole somente o JWT (sem `Bearer`) e confirme.
+3. Abra `POST /api/v1/requests`, clique em **Try it out** e preencha:
+   `{"externalId":"EXT-12345","customerId":"CUST-10001","productCode":"INTERNET-500"}`.
+4. Clique em **Execute**. Copie o `id` retornado para consultar o status em
+   `GET /api/v1/requests/{id}`, ou use a listagem com filtros.
+
+A ativação é assíncrona: a criação retorna `PENDING`; consulte novamente para acompanhar o resultado.
+Para criar outra solicitação, altere o `externalId`. Repetir o mesmo conteúdo retorna o registro original.
+Se o token expirar, gere outro e atualize em **Authorize**.
 
 ## API
 
@@ -258,7 +276,7 @@ Unitário é tudo que é regra e cabe em memória: roda em milissegundos e cobre
 - Paginação por cursor (`created_at`, `id`) no lugar de `OFFSET` para listas grandes, e `count` opcional.
 - Particionar ou arquivar solicitações finalizadas antigas para manter a tabela e os índices pequenos.
 - Métrica e alerta da idade da fila e de solicitações em `FAILED` por motivo.
-- Contrato OpenAPI publicado (springdoc) e testes de contrato com o provedor (Pact).
+- Testes de contrato com o provedor (Pact).
 - Teste de carga (Gatling/k6) com o provedor simulado lento, para calibrar timeouts, lote e circuit breaker.
 - Ao final das tentativas, uma fila de "dead letter" operável (reprocessar manualmente uma `FAILED`).
 

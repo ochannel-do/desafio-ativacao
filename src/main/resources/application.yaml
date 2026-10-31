@@ -99,3 +99,8 @@ management:
     tracing:
       endpoint: ${OTLP_ENDPOINT:http://localhost:4318/v1/traces}
       timeout: 2s
+
+springdoc:
+  paths-to-match: /api/v1/requests/**
+  swagger-ui:
+    supported-submit-methods: [get, post]

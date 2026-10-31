@@ -45,7 +45,7 @@ class SegurancaIT {
         .containsExactlyInAnyOrder("/api/v1/requests", "/api/v1/requests/{id}");
     var operations = (Map<?, ?>) paths.get("/api/v1/requests");
     var post = (Map<?, ?>) operations.get("post");
-    assertThat(post.get("security").toString()).contains("bearerAuth");
+    assertThat(docs.getBody().get("security").toString()).contains("bearerAuth");
     assertThat(post.get("requestBody")).isNotNull();
     assertThat(docs.getBody().toString()).doesNotContain("Jwt");
   }
